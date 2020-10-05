@@ -221,7 +221,6 @@ static int server_message_proc(void)
 		case MSG_VIDEO_SIGINT:
 		case MSG_AUDIO_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
-			send_msg.type = MSG_TYPE_SET_CARE;
 			server_config_message(&send_msg);
 		//	server_device_message(&send_msg);
 			//server_kernel_message(&send_msg);

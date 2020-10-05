@@ -7,19 +7,7 @@
 
 /*
  *	Manager
- *	 Reside in main thread, manage all the servers
- *
- * 	main thread (manager/watch-dog thread)
- * 						---> configuration
- * 						---> device
- * 						---> kernel
- * 						---> realtek
- * 						---> miio
- * 						---> miss
- * 						---> mi-cloud
- * 						---> video stream
- * 						---> audio stream
- *
+ *	 Reside in main thread, manage all the servers *
  */
 
 #ifndef MANAGER_MANAGER_INTERFACE_H_
@@ -34,6 +22,8 @@
 /*
  * define
  */
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.1"
+
 #define	MAX_SERVER			32
 
 #define	SERVER_CONFIG		0
@@ -47,6 +37,7 @@
 #define SERVER_AUDIO		8
 #define	SERVER_RECORDER		9
 #define	SERVER_PLAYER		10
+#define SERVER_SPEAKER		11
 #define	SERVER_MANAGER		32
 
 typedef void (*HANDLER)(void);
@@ -62,11 +53,14 @@ typedef void (*AHANDLER)(void *arg);
 
 //common message
 #define	MSG_MANAGER_BASE						(SERVER_MANAGER<<16)
-#define	MSG_MANAGER_EXIT						MSG_MANAGER_BASE | 0x0000
-#define	MSG_MANAGER_EXIT_ACK					MSG_MANAGER_BASE | 0x1000
-#define	MSG_MANAGER_TIMER_ADD					MSG_MANAGER_BASE | 0x0001
-#define	MSG_MANAGER_TIMER_ACK					MSG_MANAGER_BASE | 0x1001
-#define	MSG_MANAGER_TIMER_REMOVE				MSG_MANAGER_BASE | 0x0002
+#define	MSG_MANAGER_SIGINT						MSG_MANAGER_BASE | 0x0000
+#define	MSG_MANAGER_SIGINT_ACK					MSG_MANAGER_BASE | 0x1000
+#define	MSG_MANAGER_EXIT						MSG_MANAGER_BASE | 0x0001
+#define	MSG_MANAGER_EXIT_ACK					MSG_MANAGER_BASE | 0x1001
+#define	MSG_MANAGER_TIMER_ADD					MSG_MANAGER_BASE | 0x0010
+#define	MSG_MANAGER_TIMER_ACK					MSG_MANAGER_BASE | 0x1010
+#define	MSG_MANAGER_TIMER_REMOVE				MSG_MANAGER_BASE | 0x0011
+#define	MSG_MANAGER_TIMER_REMOVE_ACK			MSG_MANAGER_BASE | 0x1011
 
 /*
  * server status
@@ -103,10 +97,8 @@ typedef struct server_info_t {
 	server_status_t		status;
 	pthread_rwlock_t	lock;
 	pthread_t			id;
-	int					error;		//error code
-	int					status2;	//extra status
+	int					error;
 	int					msg_lock;
-	int					msg_status;
 	long int			tick;
 	int					exit;
 	task_t				task;

@@ -1,0 +1,140 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+MANAGER接口文档
+MANAGER interface
+2020-10-04
+ning
+ (/server/manager/manager_interface.h)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+################################################################################
+宏定义（MACRO）
+################################################################################
+服务器ID：定义了所有服务器
+#define	MAX_SERVER			32
+#define	SERVER_CONFIG		0
+#define	SERVER_DEVICE		1
+#define	SERVER_KERNEL		2
+#define	SERVER_REALTEK		3
+#define	SERVER_MIIO			4
+#define	SERVER_MISS			5
+#define	SERVER_MICLOUD		6
+#define	SERVER_VIDEO		7
+#define SERVER_AUDIO		8
+#define	SERVER_RECORDER		9
+#define	SERVER_PLAYER		10
+#define	SERVER_MANAGER		32
+
+################################################################################
+数据结构（STRUCT）
+################################################################################
+任务数据结构：任务定义了状态机的特定状态迁移，也就是一个任务
+typedef struct task_t {
+	HANDLER   		func;				任务处理函数
+	message_t		msg;				消息
+	server_status_t	start;				开始状态
+	server_status_t	end;				结束状态
+} task_t;
+服务器状态数据结构：记录服务器当前各种状态量
+typedef struct server_info_t {
+	server_status_t		status;
+	pthread_rwlock_t	lock;
+	pthread_t			id;
+	int					error;			错误代码
+	int					msg_lock;		消息锁定标志
+	long int			tick;			
+	int					exit;			
+	task_t				task;
+	int					thread_start;
+	int					thread_exit;
+} server_info_t;
+定时器数据结构：定时器
+typedef struct timer_struct_t
+{
+    int       		tid;
+    int				sender;
+    unsigned int 	tick;				
+    int				delay;				延迟执行时间，毫秒
+    unsigned int    interval;			执行间隔，毫秒
+    int		      	oneshot;			是否执行一次的标志
+    HANDLER   		fpcallback;			定时器回调函数
+} timer_struct_t;
+[---注意：以下数据结构位于 (/tools/tools_interface.h)---]
+消息参数数据结构：定义了统一的传入消息的参数结构
+typedef struct message_arg_t {
+	int			dog;
+	int 		cat;
+	int			duck;
+	int			chick;
+	int			tiger;
+	int			wolf;
+	HAND		handler;
+} message_arg_t;
+消息数据结构：
+typedef struct message_t {
+	int		message;		
+	int		uid;					消息唯一ID			
+	int		sender;
+	int		receiver;
+	int		result;					
+	message_arg_t	arg_in;			传入参数
+	message_arg_t	arg_pass;		传入并回传参数，执行者不关心
+	int		arg_size;
+	void	*arg;
+	int		extra_size;
+	void	*extra;
+} message_t;
+环形缓冲器数据结构：定义了深度为16的环形消息缓冲区
+typedef struct message_buffer_t {
+	message_t			buffer[MSG_BUFFER_SIZE];
+	int					head;
+	int					tail;
+	pthread_rwlock_t	lock;
+	int					init;
+	int					overflow;	
+} message_buffer_t;
+
+################################################################################
+消息（MESSAGE）
+################################################################################
+#define	MSG_MANAGER_BASE						(SERVER_MANAGER<<16)
+#define	MSG_MANAGER_SIGINT						MSG_MANAGER_BASE | 0x0000
+#define	MSG_MANAGER_SIGINT_ACK					MSG_MANAGER_BASE | 0x1000
+#define	MSG_MANAGER_EXIT						MSG_MANAGER_BASE | 0x0001
+#define	MSG_MANAGER_EXIT_ACK					MSG_MANAGER_BASE | 0x1001
+#define	MSG_MANAGER_TIMER_ADD					MSG_MANAGER_BASE | 0x0010
+#define	MSG_MANAGER_TIMER_ACK					MSG_MANAGER_BASE | 0x1010
+#define	MSG_MANAGER_TIMER_REMOVE				MSG_MANAGER_BASE | 0x0011
+#define	MSG_MANAGER_TIMER_REMOVE_ACK			MSG_MANAGER_BASE | 0x1011
+--------------------------------------------------------------------------------
+		MSG_MANAGER_EXIT
+消息说明：		MANAGER发出的让服务器退出的消息
+发送服务器：		MANAGER
+接受服务器：		所有服务器
+传入参数：		无
+返回消息：		无
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+		MSG_MANAGER_TIMER_ADD
+消息说明：		添加定时器
+发送服务器：		所有服务器
+接受服务器：		MANAGER
+传入参数：
+	arg_in:		message_arg_t			传入参数
+		cat:	int						定时器执行周期，毫秒
+		dog:	int						定时器延时，毫秒
+		duck:	int						定时器是否是一次性
+		handle:	HANDLER					定时器回调函数
+返回消息：		无
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+		MSG_MANAGER_TIMER_REMOVE
+消息说明：		添加定时器
+发送服务器：		所有服务器
+接受服务器：		MANAGER
+传入参数：
+	arg_in:		message_arg_t			传入参数
+		handle:	HANDLER					定时器回调函数
+返回消息：		无
+--------------------------------------------------------------------------------
