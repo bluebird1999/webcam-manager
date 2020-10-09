@@ -220,6 +220,7 @@ static int server_message_proc(void)
 		case MSG_MIIO_SIGINT:
 		case MSG_VIDEO_SIGINT:
 		case MSG_AUDIO_SIGINT:
+		case MSG_RECORDER_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
 			server_config_message(&send_msg);
 		//	server_device_message(&send_msg);
@@ -295,8 +296,8 @@ static int server_setup(void)
 		server_set_thread_start(SERVER_VIDEO);
 	if( !server_audio_start() )
 		server_set_thread_start(SERVER_AUDIO);
-//	if( !server_recorder_start() )
-	//	manager_set_thread_start(SERVER_RECORDER);
+	if( !server_recorder_start() )
+		server_set_thread_start(SERVER_RECORDER);
 //	if( !server_player_start() )
 	//	manager_set_thread_start(SERVER_PLAYER);
 	server_set_status(STATUS_TYPE_STATUS, STATUS_IDLE);

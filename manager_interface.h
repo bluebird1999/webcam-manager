@@ -68,6 +68,10 @@ typedef void (*AHANDLER)(void *arg);
 #define	STATUS_TYPE_STATUS					0
 #define	STATUS_TYPE_EXIT					1
 #define	STATUS_TYPE_CONFIG					2
+#define STATUS_TYPE_THREAD_START			3
+#define	STATUS_TYPE_THREAD_EXIT				4
+#define	STATUS_TYPE_MESSAGE_LOCK			5
+#define	STATUS_TYPE_STATUS2					6
 
 /*
  * structure
@@ -99,6 +103,7 @@ typedef struct server_info_t {
 	pthread_t			id;
 	int					error;
 	int					msg_lock;
+	int					status2;
 	long int			tick;
 	int					exit;
 	task_t				task;

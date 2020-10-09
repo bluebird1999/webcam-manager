@@ -40,6 +40,7 @@ typedef struct server_info_t {
 	pthread_rwlock_t	lock;
 	pthread_t			id;
 	int					error;			错误代码
+	int					status2;		附加状态码			
 	int					msg_lock;		消息锁定标志
 	long int			tick;			
 	int					exit;			
