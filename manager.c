@@ -115,8 +115,8 @@ static int manager_server_start(int server)
 			server_set_thread_start(SERVER_AUDIO);
 		break;
 	case SERVER_RECORDER:
-//		if( !server_recorder_start() )
-//			server_set_thread_start(SERVER_RECORDER);
+		if( !server_recorder_start() )
+			server_set_thread_start(SERVER_RECORDER);
 		break;
 	case SERVER_PLAYER:
 //		if( !server_player_start() )
@@ -231,6 +231,7 @@ static int server_message_proc(void)
 			server_miio_message(&send_msg);
 			server_video_message(&send_msg);
 			server_audio_message(&send_msg);
+			server_recorder_message(&send_msg);
 			log_info("sigint request from server %d", msg.sender);
 			global_sigint = 1;
 			break;
