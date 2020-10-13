@@ -17,12 +17,13 @@
  * header
  */
 #include <pthread.h>
+#include "global_interface.h"
 #include "../tools/tools_interface.h"
 
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.3"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.4"
 
 #define	MAX_SERVER			32
 
@@ -45,6 +46,14 @@ typedef void (*AHANDLER)(void *arg);
 #define TIMER_NUMBER  		16
 
 /*
+const char server_name[][MAX_SYSTEM_STRING_SIZE] =
+{
+		"CONFIG", "DEVICE", "KERNEL", "REALTEK", "MIIO", "MISS", "MICLOUD",
+		"VIDEO", "AUDIO", "RECORDER", "SPEAKER", "MANAGER",
+};
+*/
+
+/*
  * ------------message------------------
  */
 #define		MSG_TYPE_GET					0
@@ -57,6 +66,8 @@ typedef void (*AHANDLER)(void *arg);
 #define	MSG_MANAGER_SIGINT_ACK					MSG_MANAGER_BASE | 0x1000
 #define	MSG_MANAGER_EXIT						MSG_MANAGER_BASE | 0x0001
 #define	MSG_MANAGER_EXIT_ACK					MSG_MANAGER_BASE | 0x1001
+#define	MSG_MANAGER_HEARTBEAT					MSG_MANAGER_BASE | 0x0002
+#define	MSG_MANAGER_HEARTBEAT_ACK				MSG_MANAGER_BASE | 0x1002
 #define	MSG_MANAGER_TIMER_ADD					MSG_MANAGER_BASE | 0x0010
 #define	MSG_MANAGER_TIMER_ACK					MSG_MANAGER_BASE | 0x1010
 #define	MSG_MANAGER_TIMER_REMOVE				MSG_MANAGER_BASE | 0x0011

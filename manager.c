@@ -251,6 +251,10 @@ static int server_message_proc(void)
 			if( timer_remove(msg.arg_in.handler) )
 				log_err("remove timer failed!");
 			break;
+		case MSG_MANAGER_HEARTBEAT:
+			log_info("---heartbeat---at:%d",time_get_now_stamp());
+			log_info("---------------from: %d---status: %d---thread: %d", msg.sender, msg.arg_in.cat, msg.arg_in.dog );
+			break;
 	}
 	msg_free(&msg);
 	return ret;
@@ -289,8 +293,8 @@ static int server_setup(void)
 		server_set_thread_start(SERVER_REALTEK);
 //	if( !server_micloud_start() )
 	//	manager_set_thread_start(SERVER_MICLOUD);
-	if( !server_miio_start() )
-		server_set_thread_start(SERVER_MIIO);
+//	if( !server_miio_start() )
+//		server_set_thread_start(SERVER_MIIO);
 	if( !server_miss_start() )
 		server_set_thread_start(SERVER_MISS);
 	if( !server_video_start() )
@@ -399,6 +403,7 @@ int manager_proc(void)
 		server_error();
 		break;
 	}
+	sleep(1);
 	return 0;
 }
 

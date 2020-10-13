@@ -102,6 +102,8 @@ typedef struct message_buffer_t {
 #define	MSG_MANAGER_SIGINT_ACK					MSG_MANAGER_BASE | 0x1000
 #define	MSG_MANAGER_EXIT						MSG_MANAGER_BASE | 0x0001
 #define	MSG_MANAGER_EXIT_ACK					MSG_MANAGER_BASE | 0x1001
+#define	MSG_MANAGER_HEARTBEAT					MSG_MANAGER_BASE | 0x0002
+#define	MSG_MANAGER_HEARTBEAT_ACK				MSG_MANAGER_BASE | 0x1002
 #define	MSG_MANAGER_TIMER_ADD					MSG_MANAGER_BASE | 0x0010
 #define	MSG_MANAGER_TIMER_ACK					MSG_MANAGER_BASE | 0x1010
 #define	MSG_MANAGER_TIMER_REMOVE				MSG_MANAGER_BASE | 0x0011
@@ -137,5 +139,17 @@ typedef struct message_buffer_t {
 传入参数：
 	arg_in:		message_arg_t			传入参数
 		handle:	HANDLER					定时器回调函数
+返回消息：		无
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+		MSG_MANAGER_HEARTBEAT
+消息说明：		服务器心跳信息
+发送服务器：		所有服务器
+接受服务器：		MANAGER
+传入参数：
+	arg_in:		message_arg_t			传入参数
+		cat:	int						状态
+		dog:	int						线程状态
 返回消息：		无
 --------------------------------------------------------------------------------
