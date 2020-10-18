@@ -15,7 +15,7 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"alpha-3.4"
+#define				APPLICATION_VERSION_STRING	"alpha-3.5"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3

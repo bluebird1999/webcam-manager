@@ -34,6 +34,3 @@
 /*
  * helper
  */
-
-
-int	_global_exit_ = 0;

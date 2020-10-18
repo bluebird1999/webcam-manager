@@ -9,31 +9,30 @@
  * header
  */
 //system header
-#include "../manager/manager.h"
-
 #include <stdio.h>
 #include <pthread.h>
 #include <syscall.h>
 #include <signal.h>
 #include <sys/time.h>
-
-#include "../manager/global_interface.h"
-#include "../manager/manager_interface.h"
-#include "../manager/timer.h"
+#include <malloc.h>
+#include <dmalloc.h>
 //program header
-#include "../server/config/config_interface.h"
 #include "../server/audio/audio_interface.h"
 #include "../server/video/video_interface.h"
 #include "../server/miio/miio_interface.h"
 #include "../server/miss/miss_interface.h"
 //#include "../server/micloud/micloud_interface.h"
 #include "../server/realtek/realtek_interface.h"
-//#include "../server/device/device_interface.h"
+#include "../server/device/device_interface.h"
 //#include "../server/kernel/kernel_interface.h"
-//#include "../server/recorder/recorder_interface.h"
-//#include "../server/player/player_interface.h"
+#include "../server/recorder/recorder_interface.h"
+#include "../server/player/player_interface.h"
+//#include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 //server header
+#include "global_interface.h"
+#include "manager_interface.h"
+#include "timer.h"
 
 /*
  * static
@@ -57,10 +56,6 @@ static int server_stop(void);
 static int server_restart(void);
 static int server_error(void);
 static int server_release(void);
-static int server_set_thread_start(int index);
-static int server_set_thread_exit(int index);
-static int server_get_status(int type);
-static int server_set_status(int type, int st);
 //specific
 static void manager_kill_all(void);
 static int manager_server_start(int server);
@@ -78,49 +73,49 @@ static int manager_server_start(int server)
 {
 	int ret=0;
 	switch(server) {
-	case SERVER_CONFIG:
-		if( !server_config_start() )
-			server_set_thread_start(SERVER_CONFIG);
-		break;
 	case SERVER_DEVICE:
-//		if( !server_device_start() )
-//			server_set_thread_start(SERVER_DEVICE);
+		if( !server_device_start() )
+			misc_set_bit(&info.thread_start, SERVER_DEVICE, 1);
 		break;
 	case SERVER_KERNEL:
 //		if( !server_kernel_start() )
-	//		server_set_thread_start(SERVER_CONFIG);
+	//		misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
 		break;
 	case SERVER_REALTEK:
 		if( !server_realtek_start() )
-			server_set_thread_start(SERVER_REALTEK);
+			misc_set_bit(&info.thread_start, SERVER_REALTEK, 1);
 		break;
 	case SERVER_MIIO:
 		if( !server_miio_start() )
-			server_set_thread_start(SERVER_MIIO);
+			misc_set_bit(&info.thread_start, SERVER_MIIO, 1);
 		break;
 	case SERVER_MISS:
-//		if( !server_miis_start() )
-//			server_set_thread_start(SERVER_MISS);
+		if( !server_miss_start() )
+			misc_set_bit(&info.thread_start, SERVER_MISS, 1);
 		break;
 	case SERVER_MICLOUD:
 //		if( !server_micloud_start() )
-//			server_set_thread_start(SERVER_MICLOUD);
+//			misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
 		break;
 	case SERVER_VIDEO:
 		if( !server_video_start() )
-			server_set_thread_start(SERVER_VIDEO);
+			misc_set_bit(&info.thread_start, SERVER_VIDEO, 1);
 		break;
 	case SERVER_AUDIO:
 		if( !server_audio_start() )
-			server_set_thread_start(SERVER_AUDIO);
+			misc_set_bit(&info.thread_start, SERVER_AUDIO, 1);
 		break;
 	case SERVER_RECORDER:
 		if( !server_recorder_start() )
-			server_set_thread_start(SERVER_RECORDER);
+			misc_set_bit(&info.thread_start, SERVER_RECORDER, 1);
 		break;
 	case SERVER_PLAYER:
-//		if( !server_player_start() )
-//			server_set_thread_start(SERVER_PLAYER);
+		if( !server_player_start() )
+			misc_set_bit(&info.thread_start, SERVER_PLAYER, 1);
+		break;
+	case SERVER_SPEAKER:
+//		if( !server_speaker_start() )
+//			misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
 		break;
 	}
 	return ret;
@@ -132,58 +127,11 @@ static void manager_kill_all(void)
 	exit(0);
 }
 
-static int server_set_thread_exit(int index)
-{
-	thread_exit |= (1<<index);
-}
-
-static int server_set_thread_start(int index)
-{
-	thread_start |= (1<<index);
-}
-
 static int server_release(void)
 {
 	int ret = 0;
 	timer_release();
 	return ret;
-}
-
-static int server_set_status(int type, int st)
-{
-	int ret=-1;
-	ret = pthread_rwlock_wrlock(&info.lock);
-	if(ret)	{
-		log_err("add lock fail, ret = %d", ret);
-		return ret;
-	}
-	if(type == STATUS_TYPE_STATUS)
-		info.status = st;
-	else if(type==STATUS_TYPE_EXIT)
-		info.exit = st;
-	ret = pthread_rwlock_unlock(&info.lock);
-	if (ret)
-		log_err("add unlock fail, ret = %d", ret);
-	return ret;
-}
-
-static int server_get_status(int type)
-{
-	int st;
-	int ret;
-	ret = pthread_rwlock_wrlock(&info.lock);
-	if(ret)	{
-		log_err("add lock fail, ret = %d", ret);
-		return ret;
-	}
-	if(type == STATUS_TYPE_STATUS)
-		st = info.status;
-	else if(type== STATUS_TYPE_EXIT)
-		st = info.exit;
-	ret = pthread_rwlock_unlock(&info.lock);
-	if (ret)
-		log_err("add unlock fail, ret = %d", ret);
-	return st;
 }
 
 static int server_message_proc(void)
@@ -211,8 +159,7 @@ static int server_message_proc(void)
 		return 0;
 	}
 	switch(msg.message){
-		case MSG_CONFIG_SIGINT:
-	//	case MSG_DEVICE_SIGINT:
+		case MSG_DEVICE_SIGINT:
 	//	case MSG_KERNEL_SIGINT:
 		case MSG_REALTEK_SIGINT:
 	//	case MSG_MICLOUD_SIGINT:
@@ -221,9 +168,10 @@ static int server_message_proc(void)
 		case MSG_VIDEO_SIGINT:
 		case MSG_AUDIO_SIGINT:
 		case MSG_RECORDER_SIGINT:
+		case MSG_PLAYER_SIGINT:
+//		case MSG_SPEAKER_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
-			server_config_message(&send_msg);
-		//	server_device_message(&send_msg);
+			server_device_message(&send_msg);
 			//server_kernel_message(&send_msg);
 			server_realtek_message(&send_msg);
 		//	server_micloud_message(&send_msg);
@@ -232,11 +180,13 @@ static int server_message_proc(void)
 			server_video_message(&send_msg);
 			server_audio_message(&send_msg);
 			server_recorder_message(&send_msg);
+			server_player_message(&send_msg);
+//			server_speaker_message(&send_msg);
 			log_info("sigint request from server %d", msg.sender);
 			global_sigint = 1;
 			break;
 		case MSG_MANAGER_EXIT_ACK:
-			server_set_thread_exit(msg.sender);
+			misc_set_bit(&info.thread_start, msg.sender, 0);
 			if( !global_sigint )
 				manager_server_start(msg.sender);
 			break;
@@ -255,6 +205,9 @@ static int server_message_proc(void)
 			log_info("---heartbeat---at:%d",time_get_now_stamp());
 			log_info("---------------from: %d---status: %d---thread: %d", msg.sender, msg.arg_in.cat, msg.arg_in.dog );
 			break;
+		default:
+			log_err("not processed message = %d", msg.message);
+			break;
 	}
 	msg_free(&msg);
 	return ret;
@@ -265,13 +218,13 @@ static int server_message_proc(void)
  */
 static int server_none(void)
 {
-	server_set_status(STATUS_TYPE_STATUS, STATUS_WAIT);
+	info.status = STATUS_WAIT;
 	return 0;
 }
 
 static int server_wait(void)
 {
-	server_set_status(STATUS_TYPE_STATUS, STATUS_SETUP);
+	info.status = STATUS_SETUP;
 	return 0;
 }
 
@@ -281,43 +234,40 @@ static int server_setup(void)
     	return -1;
 	msg_buffer_init(&message, MSG_BUFFER_OVERFLOW_NO);
 	pthread_rwlock_init(&info.lock, NULL);
-
 	//start all servers
-	if( !server_config_start() )
-		server_set_thread_start(SERVER_CONFIG);
-//	if( !server_device_start() )
-	//	manager_set_thread_start(SERVER_DEVICE);
+	if( !server_device_start() )
+		misc_set_bit(&info.thread_start, SERVER_DEVICE, 11);
 //	if( !server_kernel_start() )
-	//	manager_set_thread_start(SERVER_KERNEL);
+	//	misc_set_bit(&info.thread_start, SERVER_KERNEL, 11);
 	if( !server_realtek_start() )
-		server_set_thread_start(SERVER_REALTEK);
+		misc_set_bit(&info.thread_start, SERVER_REALTEK,1);
 //	if( !server_micloud_start() )
-	//	manager_set_thread_start(SERVER_MICLOUD);
-//	if( !server_miio_start() )
-//		server_set_thread_start(SERVER_MIIO);
+	//	misc_set_bit(&info.thread_start, SERVER_MICLOUD, 11);
+	if( !server_miio_start() )
+		misc_set_bit(&info.thread_start, SERVER_MIIO, 11);
 	if( !server_miss_start() )
-		server_set_thread_start(SERVER_MISS);
+		misc_set_bit(&info.thread_start, SERVER_MISS, 11);
 	if( !server_video_start() )
-		server_set_thread_start(SERVER_VIDEO);
+		misc_set_bit(&info.thread_start, SERVER_VIDEO, 11);
 	if( !server_audio_start() )
-		server_set_thread_start(SERVER_AUDIO);
+		misc_set_bit(&info.thread_start, SERVER_AUDIO, 11);
 	if( !server_recorder_start() )
-		server_set_thread_start(SERVER_RECORDER);
+		misc_set_bit(&info.thread_start, SERVER_RECORDER, 11);
 //	if( !server_player_start() )
-	//	manager_set_thread_start(SERVER_PLAYER);
-	server_set_status(STATUS_TYPE_STATUS, STATUS_IDLE);
+//		misc_set_bit(&info.thread_start, SERVER_PLAYER, 11);
+	info.status = STATUS_IDLE;
 	return 0;
 }
 
 static int server_idle(void)
 {
-	server_set_status(STATUS_TYPE_STATUS, STATUS_START);
+	info.status = STATUS_START;
 	return 0;
 }
 
 static int server_start(void)
 {
-	server_set_status(STATUS_TYPE_STATUS, STATUS_RUN);
+	info.status = STATUS_RUN;
 	return 0;
 }
 
@@ -341,7 +291,7 @@ static int server_run(void)
 			manager_message(&msg);
 			sw = 1;
 		}
-		if( thread_exit == thread_start ) {
+		if( thread_start == 0 ) {
 			log_info("quit all! thread exit code = %x ", thread_exit);
 			exit(0);
 		}
@@ -373,7 +323,7 @@ static int server_error(void)
 
 int manager_proc(void)
 {
-	switch( server_get_status(STATUS_TYPE_STATUS) )
+	switch( info.status )
 	{
 	case STATUS_NONE:
 		server_none();
@@ -413,7 +363,7 @@ int manager_proc(void)
 int manager_message(message_t *msg)
 {
 	int ret=0,ret1;
-	if( server_get_status(STATUS_TYPE_STATUS)!= STATUS_RUN ) {
+	if( info.status != STATUS_RUN ) {
 		log_err("manager is not ready!");
 		return -1;
 	}

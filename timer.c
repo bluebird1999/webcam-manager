@@ -9,18 +9,19 @@
  * header
  */
 //system header
-#include "../manager/timer.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <ctype.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <malloc.h>
+#include <dmalloc.h>
 //program header
 #include "../tools/tools_interface.h"
 //server header
-
+#include "time.h"
+#include "manager_interface.h"
 /*
  * static
  */
@@ -56,10 +57,8 @@ static int timer_dispatch_message(int sender, message_t *msg)
 {
 	int st;
 	switch(sender) {
-	case SERVER_CONFIG:
-		st = server_config_message(msg);
-		break;
 	case SERVER_DEVICE:
+		st = server_device_message(msg);
 		break;
 	case SERVER_KERNEL:
 		break;
@@ -80,8 +79,11 @@ static int timer_dispatch_message(int sender, message_t *msg)
 		st = server_audio_message(msg);
 		break;
 	case SERVER_RECORDER:
+		st = server_recorder_message(msg);
 		break;
 	case SERVER_PLAYER:
+		break;
+	case SERVER_SPEAKER:
 		break;
 	case SERVER_MANAGER:
 		st = manager_message(msg);
