@@ -22,11 +22,11 @@
 #include "../server/miss/miss_interface.h"
 //#include "../server/micloud/micloud_interface.h"
 #include "../server/realtek/realtek_interface.h"
-//#include "../server/device/device_interface.h"
+#include "../server/device/device_interface.h"
 //#include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
-//#include "../server/speaker/speaker_interface.h"
+#include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "watchdog_interface.h"
 //server header
@@ -68,7 +68,8 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "program",APPLICATION_VERSION_STRING);
 	printf("   servers\r\n");
 	printf("%10s: %s\r\n", "manager",SERVER_MANAGER_VERSION_STRING);
-	printf("%10s: %s\r\n", "device","none");
+	printf("%10s: %s\r\n", "tools",TOOLS_VERSION_STRING);
+	printf("%10s: %s\r\n", "device",SERVER_DEVICE_VERSION_STRING);
 	printf("%10s: %s\r\n", "kernel","none");
 	printf("%10s: %s\r\n", "micloud","none");
 	printf("%10s: %s\r\n", "miio",SERVER_MIIO_VERSION_STRING);
@@ -78,7 +79,7 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "audio",SERVER_AUDIO_VERSION_STRING);
 	printf("%10s: %s\r\n", "recorder",SERVER_RECORDER_VERSION_STRING);
 	printf("%10s: %s\r\n", "player",SERVER_PLAYER_VERSION_STRING);
-	printf("%10s: %s\r\n", "speaker","none");
+	printf("%10s: %s\r\n", "speaker",SERVER_SPEAKER_VERSION_STRING);
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
 
     signal(SIGINT, main_thread_termination);

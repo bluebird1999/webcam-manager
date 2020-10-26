@@ -27,7 +27,7 @@
 //#include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
-//#include "../server/speaker/speaker_interface.h"
+#include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 //server header
 #include "global_interface.h"
@@ -114,8 +114,8 @@ static int manager_server_start(int server)
 			misc_set_bit(&info.thread_start, SERVER_PLAYER, 1);
 		break;
 	case SERVER_SPEAKER:
-//		if( !server_speaker_start() )
-//			misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
+		if( !server_speaker_start() )
+			misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
 		break;
 	}
 	return ret;
@@ -169,7 +169,7 @@ static int server_message_proc(void)
 		case MSG_AUDIO_SIGINT:
 		case MSG_RECORDER_SIGINT:
 		case MSG_PLAYER_SIGINT:
-//		case MSG_SPEAKER_SIGINT:
+		case MSG_SPEAKER_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
 			server_device_message(&send_msg);
 			//server_kernel_message(&send_msg);
@@ -181,7 +181,7 @@ static int server_message_proc(void)
 			server_audio_message(&send_msg);
 			server_recorder_message(&send_msg);
 			server_player_message(&send_msg);
-//			server_speaker_message(&send_msg);
+			server_speaker_message(&send_msg);
 			log_info("sigint request from server %d", msg.sender);
 			global_sigint = 1;
 			break;
@@ -203,7 +203,7 @@ static int server_message_proc(void)
 			break;
 		case MSG_MANAGER_HEARTBEAT:
 			log_info("---heartbeat---at:%d",time_get_now_stamp());
-			log_info("---------------from: %d---status: %d---thread: %d", msg.sender, msg.arg_in.cat, msg.arg_in.dog );
+			log_info("---from: %d---status: %d---thread: %d---init: %d", msg.sender, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck);
 			break;
 		default:
 			log_err("not processed message = %d", msg.message);
@@ -236,25 +236,27 @@ static int server_setup(void)
 	pthread_rwlock_init(&info.lock, NULL);
 	//start all servers
 	if( !server_device_start() )
-		misc_set_bit(&info.thread_start, SERVER_DEVICE, 11);
+		misc_set_bit(&info.thread_start, SERVER_DEVICE, 1);
 //	if( !server_kernel_start() )
-	//	misc_set_bit(&info.thread_start, SERVER_KERNEL, 11);
+	//	misc_set_bit(&info.thread_start, SERVER_KERNEL, 1);
 	if( !server_realtek_start() )
 		misc_set_bit(&info.thread_start, SERVER_REALTEK,1);
 //	if( !server_micloud_start() )
-	//	misc_set_bit(&info.thread_start, SERVER_MICLOUD, 11);
+	//	misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
 	if( !server_miio_start() )
-		misc_set_bit(&info.thread_start, SERVER_MIIO, 11);
+		misc_set_bit(&info.thread_start, SERVER_MIIO, 1);
 	if( !server_miss_start() )
-		misc_set_bit(&info.thread_start, SERVER_MISS, 11);
+		misc_set_bit(&info.thread_start, SERVER_MISS, 1);
 	if( !server_video_start() )
-		misc_set_bit(&info.thread_start, SERVER_VIDEO, 11);
+		misc_set_bit(&info.thread_start, SERVER_VIDEO, 1);
 	if( !server_audio_start() )
-		misc_set_bit(&info.thread_start, SERVER_AUDIO, 11);
+		misc_set_bit(&info.thread_start, SERVER_AUDIO, 1);
 	if( !server_recorder_start() )
-		misc_set_bit(&info.thread_start, SERVER_RECORDER, 11);
-//	if( !server_player_start() )
-//		misc_set_bit(&info.thread_start, SERVER_PLAYER, 11);
+		misc_set_bit(&info.thread_start, SERVER_RECORDER, 1);
+	if( !server_player_start() )
+		misc_set_bit(&info.thread_start, SERVER_PLAYER, 1);
+	if( !server_speaker_start() )
+		misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
 	info.status = STATUS_IDLE;
 	return 0;
 }

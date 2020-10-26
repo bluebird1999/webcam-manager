@@ -15,12 +15,13 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"alpha-3.5"
+#define				APPLICATION_VERSION_STRING	"alpha-3.6"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
 #define				MAX_KILL_TIME				5
 #define				MAX_MESSAGE_TRY				3
+#define				MAX_ASYN_SEND_TRY			3
 
 /*
  * structure
