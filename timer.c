@@ -31,7 +31,7 @@ static timer_struct_t timers[TIMER_NUMBER];
 static pthread_rwlock_t timer_lock ;
 //function;
 static unsigned int timer_get_ms(void);
-static int timer_dispatch_message(int sender, message_t *msg);
+static int send_message(int sender, message_t *msg);
 
 //specific
 
@@ -53,41 +53,55 @@ static unsigned int timer_get_ms(void)
     return time;
 }
 
-static int timer_dispatch_message(int sender, message_t *msg)
+static int send_message(int receiver, message_t *msg)
 {
-	int st;
-	switch(sender) {
-	case SERVER_DEVICE:
-		st = server_device_message(msg);
-		break;
-	case SERVER_KERNEL:
-		break;
-	case SERVER_REALTEK:
-		break;
-	case SERVER_MIIO:
-		st = server_miio_message(msg);
-		break;
-	case SERVER_MISS:
-		st = server_miss_message(msg);
-		break;
-	case SERVER_MICLOUD:
-		break;
-	case SERVER_VIDEO:
-		st = server_video_message(msg);
-		break;
-	case SERVER_AUDIO:
-		st = server_audio_message(msg);
-		break;
-	case SERVER_RECORDER:
-		st = server_recorder_message(msg);
-		break;
-	case SERVER_PLAYER:
-		break;
-	case SERVER_SPEAKER:
-		break;
-	case SERVER_MANAGER:
-		st = manager_message(msg);
-		break;
+	int st = 0;
+	switch(receiver) {
+		case SERVER_DEVICE:
+			st = server_device_message(msg);
+			break;
+		case SERVER_KERNEL:
+	//		st = server_kernel_message(msg);
+			break;
+		case SERVER_REALTEK:
+			st = server_realtek_message(msg);
+			break;
+		case SERVER_MIIO:
+			st = server_miio_message(msg);
+			break;
+		case SERVER_MISS:
+			st = server_miss_message(msg);
+			break;
+		case SERVER_MICLOUD:
+	//		st = server_micloud_message(msg);
+			break;
+		case SERVER_VIDEO:
+			st = server_video_message(msg);
+			break;
+		case SERVER_AUDIO:
+			st = server_audio_message(msg);
+			break;
+		case SERVER_RECORDER:
+			st = server_recorder_message(msg);
+			break;
+		case SERVER_PLAYER:
+			st = server_player_message(msg);
+			break;
+		case SERVER_SPEAKER:
+			st = server_speaker_message(msg);
+			break;
+		case SERVER_VIDEO2:
+			st = server_video2_message(msg);
+			break;
+		case SERVER_SCANNER:
+//			st = server_scanner_message(msg);
+			break;
+		case SERVER_MANAGER:
+			st = manager_message(msg);
+			break;
+		default:
+			log_err("unknown message target! %d", receiver);
+			break;
 	}
 	return st;
 }
@@ -194,8 +208,7 @@ int timer_proc(void)
 			pthread_rwlock_wrlock(&timer_lock);
 			timer = &timers[i];
 			now = timer_get_ms();
-			if( ( now < timer->tick) || (now > (timer->tick + timer->interval)) )
-			{
+			if( ( now < timer->tick) || (now > (timer->tick + timer->interval)) ) {
 				memcpy(&extimer,timer,sizeof(timer_struct_t));
 				if(timer->oneshot == 1) {
 					memset(timer,0,sizeof(timer_struct_t));
@@ -213,16 +226,15 @@ int timer_proc(void)
 				msg.receiver = extimer.sender;
 				msg.arg_in.handler = (void*)extimer.fpcallback;
 				/****************************/
-				timer_dispatch_message(extimer.sender, &msg);
+				send_message(extimer.sender, &msg);
 			}
-			else
-			{
+			else {
 				pthread_rwlock_unlock(&timer_lock);
 			}
 		}
 
 	}
-//	sleep(1000);
+	usleep(1000);
     return ret;
 }
 

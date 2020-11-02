@@ -29,6 +29,7 @@
 #include "../server/player/player_interface.h"
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
+#include "../server/video2/video2_interface.h"
 //server header
 #include "global_interface.h"
 #include "manager_interface.h"
@@ -117,6 +118,10 @@ static int manager_server_start(int server)
 		if( !server_speaker_start() )
 			misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
 		break;
+	case SERVER_VIDEO2:
+		if( !server_video2_start() )
+			misc_set_bit(&info.thread_start, SERVER_VIDEO2, 1);
+		break;
 	}
 	return ret;
 }
@@ -170,6 +175,7 @@ static int server_message_proc(void)
 		case MSG_RECORDER_SIGINT:
 		case MSG_PLAYER_SIGINT:
 		case MSG_SPEAKER_SIGINT:
+		case MSG_VIDEO2_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
 			server_device_message(&send_msg);
 			//server_kernel_message(&send_msg);
@@ -182,6 +188,7 @@ static int server_message_proc(void)
 			server_recorder_message(&send_msg);
 			server_player_message(&send_msg);
 			server_speaker_message(&send_msg);
+			server_video2_message(&send_msg);
 			log_info("sigint request from server %d", msg.sender);
 			global_sigint = 1;
 			break;
@@ -230,8 +237,9 @@ static int server_wait(void)
 
 static int server_setup(void)
 {
-    if( timer_init()!= 0 )
+    if( timer_init()!= 0 ) {
     	return -1;
+    }
 	msg_buffer_init(&message, MSG_BUFFER_OVERFLOW_NO);
 	pthread_rwlock_init(&info.lock, NULL);
 	//start all servers
@@ -257,6 +265,8 @@ static int server_setup(void)
 		misc_set_bit(&info.thread_start, SERVER_PLAYER, 1);
 	if( !server_speaker_start() )
 		misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
+	if( !server_video2_start() )
+		misc_set_bit(&info.thread_start, SERVER_VIDEO2, 1);
 	info.status = STATUS_IDLE;
 	return 0;
 }
@@ -365,17 +375,18 @@ int manager_proc(void)
 int manager_message(message_t *msg)
 {
 	int ret=0,ret1;
-	if( info.status != STATUS_RUN ) {
+/*	if( info.status != STATUS_RUN ) {
 		log_err("manager is not ready!");
 		return -1;
 	}
+*/
 	ret = pthread_rwlock_wrlock(&message.lock);
 	if(ret)	{
 		log_err("add message lock fail, ret = %d\n", ret);
 		return ret;
 	}
 	ret = msg_buffer_push(&message, msg);
-	log_info("push into the manager message queue: sender=%d, message=%d, ret=%d", msg->sender, msg->message, ret);
+	log_info("push into the manager message queue: sender=%d, message=%x, ret=%d", msg->sender, msg->message, ret);
 	if( ret!=0 )
 		log_err("message push in manager error =%d", ret);
 	ret1 = pthread_rwlock_unlock(&message.lock);
