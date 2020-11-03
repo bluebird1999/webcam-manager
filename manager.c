@@ -67,6 +67,59 @@ static int manager_server_start(int server);
 /*
  * helper
  */
+static int send_message(int receiver, message_t *msg)
+{
+	int st = 0;
+	switch(receiver) {
+		case SERVER_DEVICE:
+			st = server_device_message(msg);
+			break;
+		case SERVER_KERNEL:
+	//		st = server_kernel_message(msg);
+			break;
+		case SERVER_REALTEK:
+			st = server_realtek_message(msg);
+			break;
+		case SERVER_MIIO:
+			st = server_miio_message(msg);
+			break;
+		case SERVER_MISS:
+			st = server_miss_message(msg);
+			break;
+		case SERVER_MICLOUD:
+	//		st = server_micloud_message(msg);
+			break;
+		case SERVER_VIDEO:
+			st = server_video_message(msg);
+			break;
+		case SERVER_AUDIO:
+			st = server_audio_message(msg);
+			break;
+		case SERVER_RECORDER:
+			st = server_recorder_message(msg);
+			break;
+		case SERVER_PLAYER:
+			st = server_player_message(msg);
+			break;
+		case SERVER_SPEAKER:
+			st = server_speaker_message(msg);
+			break;
+		case SERVER_VIDEO2:
+			st = server_video2_message(msg);
+			break;
+		case SERVER_SCANNER:
+			st = server_scanner_message(msg);
+			break;
+		case SERVER_MANAGER:
+			st = manager_message(msg);
+			break;
+		default:
+			log_qcy(DEBUG_SERIOUS, "unknown message target! %d", receiver);
+			break;
+	}
+	return st;
+}
+
 static int manager_server_start(int server)
 {
 	int ret=0;
@@ -129,7 +182,13 @@ static int manager_server_start(int server)
 
 static void main_thread_termination(void)
 {
-	log_qcy(DEBUG_SERIOUS, "main ended!");
+	message_t msg;
+    /********message body********/
+	msg_init(&msg);
+	msg.message = MSG_MANAGER_SIGINT;
+	msg.sender = msg.receiver = SERVER_MANAGER;
+	/****************************/
+	manager_message(&msg);
 }
 
 static void manager_kill_all(void)
@@ -156,7 +215,7 @@ static int server_clean(void)
 
 static int server_message_proc(void)
 {
-	int ret = 0, ret1 = 0;
+	int ret = 0, ret1 = 0, i;
 	message_t msg;
 	message_t send_msg;
 	msg_init(&msg);
@@ -179,6 +238,7 @@ static int server_message_proc(void)
 		return 0;
 	}
 	switch(msg.message){
+		case MSG_MANAGER_SIGINT:
 		case MSG_DEVICE_SIGINT:
 	//	case MSG_KERNEL_SIGINT:
 		case MSG_REALTEK_SIGINT:
@@ -193,20 +253,12 @@ static int server_message_proc(void)
 		case MSG_VIDEO2_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
 			send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-			server_device_message(&send_msg);
-			//server_kernel_message(&send_msg);
-			server_realtek_message(&send_msg);
-		//	server_micloud_message(&send_msg);
-			server_miss_message(&send_msg);
-			server_miio_message(&send_msg);
-			server_video_message(&send_msg);
-			server_audio_message(&send_msg);
-			server_recorder_message(&send_msg);
-			server_player_message(&send_msg);
-			server_speaker_message(&send_msg);
-			server_video2_message(&send_msg);
-			server_scanner_message(&send_msg);
-			log_qcy(DEBUG_INFO, "sigint request from server %d", msg.sender);
+			for(i=0;i<MAX_SERVER;i++) {
+				if( misc_get_bit( info.thread_start, i) ) {
+					send_message(i, &send_msg);
+				}
+			}
+			log_qcy(DEBUG_INFO, "sigint request from server %d, exit code = %x", msg.sender, info.thread_start);
 		    /********message body********/
 			msg_init(&send_msg);
 			send_msg.message = MSG_MANAGER_TIMER_ADD;
