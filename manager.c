@@ -221,11 +221,13 @@ static int server_message_proc(void)
 			break;
 		case MSG_MANAGER_EXIT_ACK:
 			misc_set_bit(&info.thread_start, msg.sender, 0);
-			if( info.thread_start == 0 ) {	//quit all
-				if(info.status2 ) {
+			if( info.status2 ) {
+				if( info.thread_start == 0 ) {	//quit all
 					info.exit = 1;
 				}
-				else if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
+			}
+			else {
+				if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
 					_config_.running_mode == RUNNING_MODE_NORMAL;
 					info.task.func = task_normal;
 					info.task.start = STATUS_NONE;
@@ -233,10 +235,13 @@ static int server_message_proc(void)
 					info.status = STATUS_NONE;
 					info.status2 = 0;
 				}
+				else if( _config_.running_mode == RUNNING_MODE_NORMAL ){
+					if( _config_.fail_restart ) {
+						manager_server_start(msg.sender);
+					}
+				}
 				//to do: other mode
 			}
-			else if( _config_.fail_restart )
-				manager_server_start(msg.sender);
 			break;
 		case MSG_MANAGER_TIMER_ADD:
 			if( timer_add(msg.arg_in.handler, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck, msg.sender) )
