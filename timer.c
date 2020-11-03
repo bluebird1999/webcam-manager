@@ -16,7 +16,6 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <malloc.h>
-#include <dmalloc.h>
 //program header
 #include "../tools/tools_interface.h"
 //server header
@@ -100,7 +99,7 @@ static int send_message(int receiver, message_t *msg)
 			st = manager_message(msg);
 			break;
 		default:
-			log_err("unknown message target! %d", receiver);
+			log_qcy(DEBUG_SERIOUS, "unknown message target! %d", receiver);
 			break;
 	}
 	return st;
@@ -118,7 +117,7 @@ int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, 
     }
     ret = pthread_rwlock_wrlock(&timer_lock);
     if (ret!=0) {
-    	log_err("write lock obatain failed!");
+    	log_qcy( DEBUG_SERIOUS, "write lock obatain failed!");
     	pthread_rwlock_unlock(&timer_lock);
     	return -1;
     }
@@ -135,7 +134,7 @@ int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, 
     }
     if (i == TIMER_NUMBER) {
         if(usable_id == 1110) {
-            log_err("timer_add_task: timer list full\n");
+            log_qcy(DEBUG_SERIOUS, "timer_add_task: timer list full");
             ret = -1;
             goto out;
         } else {
@@ -158,7 +157,7 @@ int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, 
 out:
     ret = pthread_rwlock_unlock(&timer_lock);
     if (ret!=0) {
-    	log_err("un-write lock obatain failed!");
+    	log_qcy(DEBUG_SERIOUS, "un-write lock obatain failed!");
     }
     return ret;
 }

@@ -11,6 +11,8 @@
 /*
  * header
  */
+#define		MANAGER_INIT_CONDITION_NUM				1
+#define		MANAGER_INIT_CONDITION_CONFIG			0
 
 /*
  * define
@@ -24,5 +26,6 @@
  * function
  */
 int manager_proc(void);
+int manager_init(void);
 
 #endif /* MANAGER_MANAGER_H_ */

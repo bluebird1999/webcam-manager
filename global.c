@@ -16,6 +16,13 @@
 
 #include "../manager/global_interface.h"
 
+
+/*
+ * global
+ *
+ */
+manager_config_t	_config_;
+
 /*
  * static
  */

@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.7"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.8"
 
 #define	MAX_SERVER			32
 
@@ -124,11 +124,13 @@ typedef struct server_info_t {
 	int					error;
 	int					msg_lock;
 	int					status2;
-	long int			tick;
 	int					exit;
 	task_t				task;
 	int					thread_start;
 	int					thread_exit;
+	unsigned long long int	tick;
+	unsigned long long int	tick2;
+	unsigned long long int	tick3;
 } server_info_t;
 
 typedef struct timer_struct_t
