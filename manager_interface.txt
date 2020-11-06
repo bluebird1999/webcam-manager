@@ -9,7 +9,7 @@ ning
 ################################################################################
 宏定义（MACRO）
 ################################################################################
-服务器ID：定义了所有服务器
+服务器ID：
 #define	MAX_SERVER			32
 #define	SERVER_CONFIG		0
 #define	SERVER_DEVICE		1
@@ -22,6 +22,9 @@ ning
 #define SERVER_AUDIO		8
 #define	SERVER_RECORDER		9
 #define	SERVER_PLAYER		10
+#define SERVER_SPEAKER		11
+#define SERVER_VIDEO2		12
+#define SERVER_SCANNER		13
 #define	SERVER_MANAGER		32
 
 ################################################################################
@@ -39,14 +42,16 @@ typedef struct server_info_t {
 	server_status_t		status;
 	pthread_rwlock_t	lock;
 	pthread_t			id;
-	int					error;			错误代码
-	int					status2;		附加状态码			
-	int					msg_lock;		消息锁定标志
-	long int			tick;			
-	int					exit;			
+	int					error;
+	int					msg_lock;
+	int					status2;
+	int					exit;
 	task_t				task;
 	int					thread_start;
 	int					thread_exit;
+	unsigned long long int	tick;
+	unsigned long long int	tick2;
+	unsigned long long int	tick3;
 } server_info_t;
 定时器数据结构：定时器
 typedef struct timer_struct_t
