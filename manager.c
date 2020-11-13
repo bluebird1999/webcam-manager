@@ -251,6 +251,7 @@ static int server_message_proc(void)
 		case MSG_PLAYER_SIGINT:
 		case MSG_SPEAKER_SIGINT:
 		case MSG_VIDEO2_SIGINT:
+		case MSG_SCANNER_SIGINT:
 			send_msg.message = MSG_MANAGER_EXIT;
 			send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 			for(i=0;i<MAX_SERVER;i++) {
@@ -259,17 +260,19 @@ static int server_message_proc(void)
 				}
 			}
 			log_qcy(DEBUG_INFO, "sigint request from server %d, exit code = %x", msg.sender, info.thread_start);
-		    /********message body********/
-			msg_init(&send_msg);
-			send_msg.message = MSG_MANAGER_TIMER_ADD;
-			send_msg.sender = SERVER_MANAGER;
-			send_msg.arg_in.cat = 5000;
-			send_msg.arg_in.dog = 0;
-			send_msg.arg_in.duck = 1;
-			send_msg.arg_in.handler = &manager_kill_all;
-			manager_message(&msg);
-			/****************************/
-			info.status2 = 1;
+			if( !info.status2 ) {
+				/********message body********/
+				msg_init(&send_msg);
+				send_msg.message = MSG_MANAGER_TIMER_ADD;
+				send_msg.sender = SERVER_MANAGER;
+				send_msg.arg_in.cat = 5000;
+				send_msg.arg_in.dog = 0;
+				send_msg.arg_in.duck = 1;
+				send_msg.arg_in.handler = &manager_kill_all;
+				manager_message(&msg);
+				/****************************/
+				info.status2 = 1;
+			}
 			break;
 		case MSG_MANAGER_EXIT_ACK:
 			misc_set_bit(&info.thread_start, msg.sender, 0);
@@ -277,15 +280,25 @@ static int server_message_proc(void)
 				if( info.thread_start == 0 ) {	//quit all
 					info.exit = 1;
 				}
+				log_qcy(DEBUG_INFO, "termination process quit status = %x", info.thread_start);
 			}
 			else {
 				if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
-					_config_.running_mode == RUNNING_MODE_NORMAL;
-					info.task.func = task_normal;
-					info.task.start = STATUS_NONE;
-					info.task.end = STATUS_RUN;
-					info.status = STATUS_NONE;
-					info.status2 = 0;
+					if( info.thread_start == 0 ) {	//quit all
+						_config_.running_mode == RUNNING_MODE_NORMAL;
+						info.task.func = task_normal;
+						info.task.start = STATUS_NONE;
+						info.task.end = STATUS_RUN;
+						info.status = STATUS_NONE;
+						info.status2 = 0;
+					}
+					else if( info.thread_start == (1<<SERVER_REALTEK) ) {
+						msg_init(&send_msg);
+						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+						send_msg.message = MSG_MANAGER_EXIT;
+						server_realtek_message(&send_msg);
+					}
+					log_qcy(DEBUG_INFO, "scanner process quit status = %x", info.thread_start);
 				}
 				else if( _config_.running_mode == RUNNING_MODE_NORMAL ){
 					if( _config_.fail_restart ) {
@@ -311,17 +324,26 @@ static int server_message_proc(void)
 			log_qcy(DEBUG_VERBOSE, "---heartbeat---at:%d",time_get_now_stamp());
 			log_qcy(DEBUG_VERBOSE, "---from: %d---status: %d---thread: %d---init: %d", msg.sender, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck);
 			break;
-/*		case MSG_SCANNER_NOTIFY:
-			if( !msg.result ) { 	//successfully scan the qr code
-				msg_init(&send_msg);
-				send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-				send_msg.message = MSG_MANAGER_EXIT;
-				server_realtek_message(&send_msg);
-				server_scanner_message(&send_msg);
-				server_speaker_message(&send_msg);
+		case MSG_MIIO_PROPERTY_NOTIFY:
+			if( msg.arg_in.cat == MIIO_PROPERTY_CLIENT_STATUS) {
+				if( info.task.func == task_scanner) {
+					if( (msg.arg_in.dog == STATE_WIFI_STA_MODE) ||
+						(msg.arg_in.dog == STATE_CLOUD_CONNECTED) ) {
+						msg_init(&send_msg);
+						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+						send_msg.message = MSG_MANAGER_EXIT;
+						server_scanner_message(&send_msg);
+						server_speaker_message(&send_msg);
+						server_miio_message(&send_msg);
+						log_qcy(DEBUG_INFO, "---scanner success!---");
+					}
+					else {
+						log_qcy(DEBUG_INFO, "---scanner error status = %d---", msg.arg_in.dog);
+					}
+
+				}
 			}
 			break;
-*/
 		default:
 			log_qcy(DEBUG_SERIOUS, "not processed message = %x", msg.message);
 			break;
@@ -461,9 +483,9 @@ static int task_scanner(void)
 			info.status = STATUS_SETUP;
 			break;
 		case STATUS_SETUP:
-			start = 10248; //10100000001000, realtek, speaker, scanner;
+			start = 10264;//2072; //10100000011000, miio, realtek, speaker, scanner;
 			for(i=0;i<MAX_SERVER;i++) {
-				if( misc_get_bit( _config_.server_start, i) ) {
+				if( misc_get_bit( start, i) ) {
 					manager_server_start(i);
 				}
 			}
@@ -547,7 +569,7 @@ int manager_init(void)
 	memset(fname,0,sizeof(fname));
 	sprintf(fname, "%swifi.conf", _config_.miio_path);
 	if( (info.task.func == task_normal) || (info.task.func == task_testing) ) {
-		if( (access(fname, F_OK))!=-1) {
+		if( (access(fname, F_OK))==-1) {
 			_config_.running_mode = RUNNING_MODE_SCANNER;
 			info.task.func = task_scanner;
 			info.task.start = STATUS_NONE;
