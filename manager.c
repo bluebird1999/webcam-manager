@@ -57,7 +57,8 @@ static int task_scanner(void);
 //specific
 static void manager_kill_all(void);
 static int manager_server_start(int server);
-
+static int manager_sleep(void);
+static int manager_wakeup(void);
 /*
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -120,6 +121,88 @@ static int send_message(int receiver, message_t *msg)
 	return st;
 }
 
+static int manager_get_property(message_t *msg)
+{
+	int ret = 0, st;
+	int temp;
+	message_t send_msg;
+    /********message body********/
+	msg_init(&send_msg);
+	memcpy(&(send_msg.arg_pass), &(msg->arg_pass),sizeof(message_arg_t));
+	send_msg.message = msg->message | 0x1000;
+	send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+	send_msg.arg_in.cat = msg->arg_in.cat;
+	send_msg.result = 0;
+	/****************************/
+	if( send_msg.arg_in.cat == MANAGER_PROPERTY_SLEEP) {
+		if( _config_.running_mode == RUNNING_MODE_SLEEP )
+			temp = 1;
+		else
+			temp = 0;
+		send_msg.arg = (void*)(&temp);
+		send_msg.arg_size = sizeof(temp);
+	}
+	ret = send_message( msg->receiver, &send_msg);
+	return ret;
+}
+
+static int manager_set_property(message_t *msg)
+{
+	int ret=0, mode = -1;
+	message_t send_msg;
+    /********message body********/
+	msg_init(&send_msg);
+	memcpy(&(send_msg.arg_pass), &(msg->arg_pass),sizeof(message_arg_t));
+	send_msg.message = msg->message | 0x1000;
+	send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+	send_msg.arg_in.cat = msg->arg_in.cat;
+	/****************************/
+	if( msg->arg_in.cat == MANAGER_PROPERTY_SLEEP ) {
+		int temp = *((int*)(msg->arg));
+		if( (temp == 0) && ( _config_.running_mode == RUNNING_MODE_SLEEP) ) {
+			ret = 0;
+		}
+		else if( (temp == 1) && ( _config_.running_mode == RUNNING_MODE_NORMAL) ) {
+			ret = 0;
+		}
+		else if( temp == 0 ) {
+			if( info.status == STATUS_RUN )
+				ret = manager_sleep();
+			else
+				log_qcy(DEBUG_INFO,"still in previous sleep enter processing");
+		}
+		else if( temp == 1 ) {
+			if( info.status == STATUS_RUN )
+				ret = manager_wakeup();
+			else
+				log_qcy(DEBUG_INFO,"still in previous sleep leaving processing");
+		}
+	}
+	/***************************/
+	send_msg.result = ret;
+	ret = send_message(msg->receiver, &send_msg);
+	/***************************/
+	return ret;
+}
+
+static int manager_sleep(void)
+{
+	int ret = 0;
+	info.status = STATUS_NONE;
+	info.task.func = task_sleep;
+	_config_.running_mode = RUNNING_MODE_SLEEP;
+	return ret;
+}
+
+static int manager_wakeup(void)
+{
+	int ret = 0;
+	info.status = STATUS_NONE;
+	info.task.func = task_normal;
+	_config_.running_mode = RUNNING_MODE_NORMAL;
+	return ret;
+}
+
 static int manager_server_start(int server)
 {
 	int ret=0;
@@ -145,8 +228,8 @@ static int manager_server_start(int server)
 				misc_set_bit(&info.thread_start, SERVER_MISS, 1);
 			break;
 		case SERVER_MICLOUD:
-	//		if( !server_micloud_start() )
-	//			misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
+//			if( !server_micloud_start() )
+//				misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
 			break;
 		case SERVER_VIDEO:
 			if( !server_video_start() )
@@ -180,15 +263,15 @@ static int manager_server_start(int server)
 	return ret;
 }
 
-static void main_thread_termination(void)
+static int manager_server_stop(int server)
 {
+	int ret=0;
 	message_t msg;
-    /********message body********/
 	msg_init(&msg);
-	msg.message = MSG_MANAGER_SIGINT;
+	msg.message = MSG_MANAGER_EXIT;
 	msg.sender = msg.receiver = SERVER_MANAGER;
-	/****************************/
-	manager_message(&msg);
+	ret = send_message(server, &msg);
+	return ret;
 }
 
 static void manager_kill_all(void)
@@ -256,7 +339,8 @@ static int server_message_proc(void)
 			send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( info.thread_start, i) ) {
-					send_message(i, &send_msg);
+					if( i != SERVER_REALTEK )
+						send_message(i, &send_msg);
 				}
 			}
 			log_qcy(DEBUG_INFO, "sigint request from server %d, exit code = %x", msg.sender, info.thread_start);
@@ -277,7 +361,13 @@ static int server_message_proc(void)
 		case MSG_MANAGER_EXIT_ACK:
 			misc_set_bit(&info.thread_start, msg.sender, 0);
 			if( info.status2 ) {
-				if( info.thread_start == 0 ) {	//quit all
+				if( info.thread_start == (1<<SERVER_REALTEK) ) {
+					msg_init(&send_msg);
+					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+					send_msg.message = MSG_MANAGER_EXIT;
+					server_realtek_message(&send_msg);
+				}
+				else if( info.thread_start == 0 ) {	//quit all
 					info.exit = 1;
 				}
 				log_qcy(DEBUG_INFO, "termination process quit status = %x", info.thread_start);
@@ -304,6 +394,19 @@ static int server_message_proc(void)
 					if( _config_.fail_restart ) {
 						manager_server_start(msg.sender);
 					}
+					log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
+				}
+				else if( _config_.running_mode == RUNNING_MODE_SLEEP) {
+					if( info.thread_start == (1<<SERVER_MIIO) ) {
+						info.status = STATUS_START;
+					}
+					else if( info.thread_start == ((1<<SERVER_REALTEK)|(1<<SERVER_MIIO)) ) {
+						msg_init(&send_msg);
+						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+						send_msg.message = MSG_MANAGER_EXIT;
+						server_realtek_message(&send_msg);
+					}
+					log_qcy(DEBUG_INFO, "sleeping process quit status = %x", info.thread_start);
 				}
 				//to do: other mode
 			}
@@ -326,7 +429,7 @@ static int server_message_proc(void)
 			break;
 		case MSG_MIIO_PROPERTY_NOTIFY:
 			if( msg.arg_in.cat == MIIO_PROPERTY_CLIENT_STATUS) {
-				if( info.task.func == task_scanner) {
+				if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
 					if( (msg.arg_in.dog == STATE_WIFI_STA_MODE) ||
 						(msg.arg_in.dog == STATE_CLOUD_CONNECTED) ) {
 						msg_init(&send_msg);
@@ -343,6 +446,12 @@ static int server_message_proc(void)
 
 				}
 			}
+			break;
+		case MSG_MANAGER_PROPERTY_GET:
+			manager_get_property(&msg);
+			break;
+		case MSG_MANAGER_PROPERTY_SET:
+			manager_set_property(&msg);
 			break;
 		default:
 			log_qcy(DEBUG_SERIOUS, "not processed message = %x", msg.message);
@@ -383,13 +492,40 @@ static int task_none(void)
 
 static int task_sleep(void)
 {
+	int i;
 	switch( info.status )
 	{
 		case STATUS_NONE:
 			info.status = STATUS_WAIT;
 			break;
+		case STATUS_WAIT:
+			info.status = STATUS_SETUP;
+			break;
+		case STATUS_SETUP:
+			for(i=0;i<MAX_SERVER;i++) {
+				if( misc_get_bit( info.thread_start, i) ) {
+					if( (i != SERVER_MIIO) && (i!= SERVER_REALTEK) )
+						manager_server_stop(i);
+				}
+			}
+			info.status = STATUS_IDLE;
+			break;
+		case STATUS_IDLE:
+			break;
+		case STATUS_START:
+			info.status = STATUS_RUN;
+			break;
+		case STATUS_RUN:
+			break;
+		case STATUS_STOP:
+			break;
+		case STATUS_RESTART:
+			break;
+		case STATUS_ERROR:
+			info.task.func = task_error;
+			break;
 		default:
-			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_sleep = %d", info.status);
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_normal = %d", info.status);
 			break;
 	}
 	return 0;
@@ -410,7 +546,8 @@ static int task_normal(void)
 		case STATUS_SETUP:
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( _config_.server_start, i) ) {
-					manager_server_start(i);
+					if( misc_get_bit( info.thread_start, i) != 1 )
+						manager_server_start(i);
 				}
 			}
 			info.status = STATUS_IDLE;
@@ -513,6 +650,20 @@ static int task_scanner(void)
 	return 0;
 }
 
+static int main_thread_termination(void)
+{
+	int ret=0;
+    message_t msg;
+    /********message body********/
+    msg_init(&msg);
+    msg.message = MSG_MANAGER_SIGINT;
+	msg.sender = msg.receiver = SERVER_MANAGER;
+    /****************************/
+    manager_message(&msg);
+	return ret;
+}
+
+
 /*
  * internal interface
  */
@@ -534,6 +685,7 @@ int manager_init(void)
 		return -1;
     if( timer_init()!= 0 )
     	return -1;
+    _config_.timezone = 8;	//temporarily set to utc+8
 	if( !message.init ) {
 		msg_buffer_init(&message, MSG_BUFFER_OVERFLOW_NO);
 	}
@@ -568,7 +720,7 @@ int manager_init(void)
 	char fname[MAX_SYSTEM_STRING_SIZE*2];
 	memset(fname,0,sizeof(fname));
 	sprintf(fname, "%swifi.conf", _config_.miio_path);
-	if( (info.task.func == task_normal) || (info.task.func == task_testing) ) {
+	if( (_config_.running_mode == RUNNING_MODE_NORMAL) || (_config_.running_mode == RUNNING_MODE_TESTING) ) {
 		if( (access(fname, F_OK))==-1) {
 			_config_.running_mode = RUNNING_MODE_SCANNER;
 			info.task.func = task_scanner;
