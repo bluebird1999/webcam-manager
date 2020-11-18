@@ -136,9 +136,11 @@ static int manager_get_property(message_t *msg)
 	/****************************/
 	if( send_msg.arg_in.cat == MANAGER_PROPERTY_SLEEP) {
 		if( _config_.running_mode == RUNNING_MODE_SLEEP )
+			temp = 0;
+		else if( _config_.running_mode == RUNNING_MODE_NORMAL)
 			temp = 1;
 		else
-			temp = 0;
+			log_qcy(DEBUG_WARNING, "----current sleeping status = %d", _config_.running_mode );
 		send_msg.arg = (void*)(&temp);
 		send_msg.arg_size = sizeof(temp);
 	}
@@ -335,11 +337,12 @@ static int server_message_proc(void)
 		case MSG_SPEAKER_SIGINT:
 		case MSG_VIDEO2_SIGINT:
 		case MSG_SCANNER_SIGINT:
+			info.thread_exit = msg.sender;
 			send_msg.message = MSG_MANAGER_EXIT;
 			send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( info.thread_start, i) ) {
-					if( i != SERVER_REALTEK )
+					if( (i != SERVER_REALTEK) && (i!=info.thread_exit) )
 						send_message(i, &send_msg);
 				}
 			}
@@ -367,49 +370,54 @@ static int server_message_proc(void)
 					send_msg.message = MSG_MANAGER_EXIT;
 					server_realtek_message(&send_msg);
 				}
+				else if( info.thread_start == ( (1<<SERVER_REALTEK) | (1<<info.thread_exit) ) ) {
+					msg_init(&send_msg);
+					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+					send_msg.message = MSG_MANAGER_EXIT;
+					send_message(info.thread_exit,&send_msg);
+					log_qcy(DEBUG_INFO, "termination process--------exiter quit message sent!---%d", info.thread_exit);
+				}
 				else if( info.thread_start == 0 ) {	//quit all
 					info.exit = 1;
 				}
 				log_qcy(DEBUG_INFO, "termination process quit status = %x", info.thread_start);
 			}
-			else {
-				if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
-					if( info.thread_start == 0 ) {	//quit all
-						_config_.running_mode == RUNNING_MODE_NORMAL;
-						info.task.func = task_normal;
-						info.task.start = STATUS_NONE;
-						info.task.end = STATUS_RUN;
-						info.status = STATUS_NONE;
-						info.status2 = 0;
-					}
-					else if( info.thread_start == (1<<SERVER_REALTEK) ) {
-						msg_init(&send_msg);
-						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-						send_msg.message = MSG_MANAGER_EXIT;
-						server_realtek_message(&send_msg);
-					}
-					log_qcy(DEBUG_INFO, "scanner process quit status = %x", info.thread_start);
+			else if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
+				if( info.thread_start == 0 ) {	//quit all
+					_config_.running_mode == RUNNING_MODE_NORMAL;
+					info.task.func = task_normal;
+					info.task.start = STATUS_NONE;
+					info.task.end = STATUS_RUN;
+					info.status = STATUS_NONE;
+					info.status2 = 0;
 				}
-				else if( _config_.running_mode == RUNNING_MODE_NORMAL ){
-					if( _config_.fail_restart ) {
-						manager_server_start(msg.sender);
-					}
-					log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
+				else if( info.thread_start == (1<<SERVER_REALTEK) ) {
+					msg_init(&send_msg);
+					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+					send_msg.message = MSG_MANAGER_EXIT;
+					server_realtek_message(&send_msg);
 				}
-				else if( _config_.running_mode == RUNNING_MODE_SLEEP) {
-					if( info.thread_start == (1<<SERVER_MIIO) ) {
-						info.status = STATUS_START;
-					}
-					else if( info.thread_start == ((1<<SERVER_REALTEK)|(1<<SERVER_MIIO)) ) {
-						msg_init(&send_msg);
-						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-						send_msg.message = MSG_MANAGER_EXIT;
-						server_realtek_message(&send_msg);
-					}
-					log_qcy(DEBUG_INFO, "sleeping process quit status = %x", info.thread_start);
-				}
-				//to do: other mode
+				log_qcy(DEBUG_INFO, "scanner process quit status = %x", info.thread_start);
 			}
+			else if( _config_.running_mode == RUNNING_MODE_NORMAL ){
+				if( _config_.fail_restart ) {
+					manager_server_start(msg.sender);
+				}
+				log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
+			}
+			else if( _config_.running_mode == RUNNING_MODE_SLEEP) {
+				if( info.thread_start == (1<<SERVER_MIIO) ) {
+					info.status = STATUS_START;
+				}
+				else if( info.thread_start == ((1<<SERVER_REALTEK)|(1<<SERVER_MIIO)) ) {
+					msg_init(&send_msg);
+					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+					send_msg.message = MSG_MANAGER_EXIT;
+					server_realtek_message(&send_msg);
+				}
+				log_qcy(DEBUG_INFO, "sleeping process quit status = %x", info.thread_start);
+			}
+			//to do: other mode
 			break;
 		case MSG_MANAGER_TIMER_ADD:
 			if( timer_add(msg.arg_in.handler, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck, msg.sender) )
