@@ -80,7 +80,6 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "video2",SERVER_VIDEO2_VERSION_STRING);
 	printf("%10s: %s\r\n", "scanner",SERVER_SCANNER_VERSION_STRING);
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
-
 	manager_init();
 /*
  * main loop

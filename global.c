@@ -12,9 +12,9 @@
 #include <stdio.h>
 #include <signal.h>
 //program header
-//server header
 
-#include "../manager/global_interface.h"
+//server header
+#include "global_interface.h"
 
 
 /*
@@ -22,7 +22,7 @@
  *
  */
 manager_config_t	_config_;
-
+elr_mpl_t 			_pool_ = ELR_MPL_INITIALIZER;
 /*
  * static
  */

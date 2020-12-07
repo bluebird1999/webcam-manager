@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-3.14"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.0"
 
 #define	MAX_SERVER			32
 
@@ -43,8 +43,6 @@
 #define SERVER_SCANNER		13
 #define	SERVER_MANAGER		32
 
-typedef void (*HANDLER)(void);
-typedef void (*AHANDLER)(void *arg);
 #define TIMER_NUMBER  		16
 
 /*
@@ -68,12 +66,14 @@ const char server_name[][MAX_SYSTEM_STRING_SIZE] =
 #define	MSG_MANAGER_SIGINT_ACK					(MSG_MANAGER_BASE | 0x1000)
 #define	MSG_MANAGER_EXIT						(MSG_MANAGER_BASE | 0x0001)
 #define	MSG_MANAGER_EXIT_ACK					(MSG_MANAGER_BASE | 0x1001)
-#define	MSG_MANAGER_HEARTBEAT					(MSG_MANAGER_BASE | 0x0002)
-#define	MSG_MANAGER_HEARTBEAT_ACK				(MSG_MANAGER_BASE | 0x1002)
-#define	MSG_MANAGER_TIMER_ADD					(MSG_MANAGER_BASE | 0x0010)
-#define	MSG_MANAGER_TIMER_ACK					(MSG_MANAGER_BASE | 0x1010)
-#define	MSG_MANAGER_TIMER_REMOVE				(MSG_MANAGER_BASE | 0x0011)
-#define	MSG_MANAGER_TIMER_REMOVE_ACK			(MSG_MANAGER_BASE | 0x1011)
+#define	MSG_MANAGER_DUMMY						(MSG_MANAGER_BASE | 0x0002)
+#define	MSG_MANAGER_WAKEUP						(MSG_MANAGER_BASE | 0x0003)
+#define	MSG_MANAGER_HEARTBEAT					(MSG_MANAGER_BASE | 0x0010)
+#define	MSG_MANAGER_HEARTBEAT_ACK				(MSG_MANAGER_BASE | 0x1010)
+#define	MSG_MANAGER_TIMER_ADD					(MSG_MANAGER_BASE | 0x0011)
+#define	MSG_MANAGER_TIMER_ACK					(MSG_MANAGER_BASE | 0x0012)
+#define	MSG_MANAGER_TIMER_REMOVE				(MSG_MANAGER_BASE | 0x0013)
+#define	MSG_MANAGER_TIMER_REMOVE_ACK			(MSG_MANAGER_BASE | 0x1013)
 #define	MSG_MANAGER_PROPERTY_GET				(MSG_MANAGER_BASE | 0x0020)
 #define	MSG_MANAGER_PROPERTY_GET_ACK			(MSG_MANAGER_BASE | 0x1020)
 #define	MSG_MANAGER_PROPERTY_SET				(MSG_MANAGER_BASE | 0x0021)
@@ -81,7 +81,15 @@ const char server_name[][MAX_SYSTEM_STRING_SIZE] =
 
 
 #define	MANAGER_PROPERTY_SLEEP					(0x000 | PROPERTY_TYPE_GET)
+#define	MANAGER_PROPERTY_DEEP_SLEEP_REPEAT		(0x002 | PROPERTY_TYPE_GET)
+#define	MANAGER_PROPERTY_DEEP_SLEEP_WEEKDAY		(0x003 | PROPERTY_TYPE_GET)
+#define	MANAGER_PROPERTY_DEEP_SLEEP_START		(0x004 | PROPERTY_TYPE_GET)
+#define	MANAGER_PROPERTY_DEEP_SLEEP_END			(0x005 | PROPERTY_TYPE_GET)
 
+
+
+typedef void (*HANDLER)(void);
+typedef void (*AHANDLER)(void *arg);
 /*
  * server status
  */
@@ -92,6 +100,7 @@ const char server_name[][MAX_SYSTEM_STRING_SIZE] =
 #define	STATUS_TYPE_THREAD_EXIT				4
 #define	STATUS_TYPE_MESSAGE_LOCK			5
 #define	STATUS_TYPE_STATUS2					6
+#define	STATUS_TYPE_ERROR					7
 
 /*
  *  property type
@@ -105,7 +114,7 @@ const char server_name[][MAX_SYSTEM_STRING_SIZE] =
  */
 //sever status for local state machine
 typedef enum server_status_t {
-    STATUS_NONE,			//initial status = 0;
+    STATUS_NONE = 0,		//initial status = 0;
 	STATUS_WAIT,			//wait state;
 	STATUS_SETUP,			//setup action;
 	STATUS_IDLE,			//idle state;
@@ -114,6 +123,20 @@ typedef enum server_status_t {
 	STATUS_STOP,			//stop action;
 	STATUS_RESTART,			//restart action;
 	STATUS_ERROR,			//error action;
+
+	TASK_INIT = 100,		//general task
+	TASK_WAIT,
+	TASK_SETUP,
+	TASK_IDLE,
+	TASK_RUN,
+	TASK_FINISH,
+
+	EXIT_INIT = 1000,		//quit start
+	EXIT_SERVER,
+	EXIT_STAGE1,
+	EXIT_THREAD,
+	EXIT_STAGE2,
+	EXIT_FINISH,
 } server_status_t;
 
 typedef struct task_t {
@@ -126,8 +149,9 @@ typedef struct task_t {
 //server info
 typedef struct server_info_t {
 	server_status_t		status;
-	pthread_rwlock_t	lock;
+	server_status_t		old_status;
 	pthread_t			id;
+	int					init;
 	int					error;
 	int					msg_lock;
 	int					status2;
@@ -135,9 +159,9 @@ typedef struct server_info_t {
 	task_t				task;
 	int					thread_start;
 	int					thread_exit;
+	int					init_status;
 	unsigned long long int	tick;
-	unsigned long long int	tick2;
-	unsigned long long int	tick3;
+	pthread_rwlock_t	lock;		//deprecated, please use the static one
 } server_info_t;
 
 typedef struct timer_struct_t
@@ -155,4 +179,9 @@ typedef struct timer_struct_t
  * function
  */
 int manager_message(message_t *msg);
+
+
+int manager_common_send_message(int receiver, message_t *msg);
+void manager_common_send_dummy(int server);
+
 #endif /* MANAGER_MANAGER_INTERFACE_H_ */

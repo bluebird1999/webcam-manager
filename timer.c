@@ -30,7 +30,6 @@ static timer_struct_t timers[TIMER_NUMBER];
 static pthread_rwlock_t timer_lock ;
 //function;
 static unsigned int timer_get_ms(void);
-static int send_message(int sender, message_t *msg);
 
 //specific
 
@@ -52,59 +51,6 @@ static unsigned int timer_get_ms(void)
     return time;
 }
 
-static int send_message(int receiver, message_t *msg)
-{
-	int st = 0;
-	switch(receiver) {
-		case SERVER_DEVICE:
-			st = server_device_message(msg);
-			break;
-		case SERVER_KERNEL:
-	//		st = server_kernel_message(msg);
-			break;
-		case SERVER_REALTEK:
-			st = server_realtek_message(msg);
-			break;
-		case SERVER_MIIO:
-			st = server_miio_message(msg);
-			break;
-		case SERVER_MISS:
-			st = server_miss_message(msg);
-			break;
-		case SERVER_MICLOUD:
-	//		st = server_micloud_message(msg);
-			break;
-		case SERVER_VIDEO:
-			st = server_video_message(msg);
-			break;
-		case SERVER_AUDIO:
-			st = server_audio_message(msg);
-			break;
-		case SERVER_RECORDER:
-			st = server_recorder_message(msg);
-			break;
-		case SERVER_PLAYER:
-			st = server_player_message(msg);
-			break;
-		case SERVER_SPEAKER:
-			st = server_speaker_message(msg);
-			break;
-		case SERVER_VIDEO2:
-			st = server_video2_message(msg);
-			break;
-		case SERVER_SCANNER:
-//			st = server_scanner_message(msg);
-			break;
-		case SERVER_MANAGER:
-			st = manager_message(msg);
-			break;
-		default:
-			log_qcy(DEBUG_SERIOUS, "unknown message target! %d", receiver);
-			break;
-	}
-	return st;
-}
-
 /*
  * interface
  */
@@ -115,7 +61,7 @@ int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, 
     if ((timer_run == 0) || (task_handler == NULL)) {
         return -1;
     }
-    ret = pthread_rwlock_wrlock(&timer_lock);
+    ret = pthread_rwlock_trywrlock(&timer_lock);
     if (ret!=0) {
     	log_qcy( DEBUG_SERIOUS, "write lock obatain failed!");
     	pthread_rwlock_unlock(&timer_lock);
@@ -175,7 +121,7 @@ int timer_remove(HANDLER const task_handler)
     }
     if(i != TIMER_NUMBER)
     {
-        pthread_rwlock_wrlock(&timer_lock);
+        pthread_rwlock_trywrlock(&timer_lock);
         memset(&timers[i],0,sizeof(timer_struct_t));
         pthread_rwlock_unlock(&timer_lock);
     }
@@ -204,7 +150,7 @@ int timer_proc(void)
 
 	for(i = 0; i < TIMER_NUMBER; i++) {
 		if( timers[i].tid != 0 ) {
-			pthread_rwlock_wrlock(&timer_lock);
+			pthread_rwlock_trywrlock(&timer_lock);
 			timer = &timers[i];
 			now = timer_get_ms();
 			if( ( now < timer->tick) || (now > (timer->tick + timer->interval)) ) {
@@ -225,7 +171,7 @@ int timer_proc(void)
 				msg.receiver = extimer.sender;
 				msg.arg_in.handler = (void*)extimer.fpcallback;
 				/****************************/
-				send_message(extimer.sender, &msg);
+				manager_common_send_message(extimer.sender, &msg);
 			}
 			else {
 				pthread_rwlock_unlock(&timer_lock);
@@ -233,7 +179,6 @@ int timer_proc(void)
 		}
 
 	}
-	usleep(1000);
     return ret;
 }
 

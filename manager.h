@@ -17,6 +17,7 @@
 /*
  * define
  */
+#define	THREAD_TIMER				0
 
 /*
  * structure
@@ -27,5 +28,8 @@
  */
 int manager_proc(void);
 int manager_init(void);
-
+void manager_deep_sleep(void);
+void manager_wakeup(void);
+int manager_osd_init(void);
+int manager_osd_release(void);
 #endif /* MANAGER_MANAGER_H_ */

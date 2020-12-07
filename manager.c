@@ -26,14 +26,16 @@
 //#include "../server/micloud/micloud_interface.h"
 #include "../server/realtek/realtek_interface.h"
 #include "../server/device/device_interface.h"
-//#include "../server/kernel/kernel_interface.h"
+#include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "../server/video2/video2_interface.h"
 #include "../server/scanner/scanner_interface.h"
+
 //server header
+#include "manager.h"
 #include "global_interface.h"
 #include "manager_interface.h"
 #include "timer.h"
@@ -45,20 +47,24 @@
 //variable
 static message_buffer_t message;
 static server_info_t 	info;
+static pthread_rwlock_t	ilock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t	mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t	cond = PTHREAD_COND_INITIALIZER;
+
 //function;
 static int server_message_proc(void);
-static int server_release(void);
-static int task_error(void);
-static int task_none(void);
-static int task_sleep(void);
-static int task_normal(void);
-static int task_testing(void);
-static int task_scanner(void);
+static void task_deep_sleep(void);
+static void task_sleep(void);
+static void task_default(void);
+static void task_testing(void);
+static void task_scanner(void);
+static void task_exit(void);
+static int main_thread_termination(void);
 //specific
 static void manager_kill_all(void);
 static int manager_server_start(int server);
-static int manager_sleep(void);
-static int manager_wakeup(void);
+static void manager_sleep(void);
+static void manager_send_wakeup(int server);
 /*
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -68,57 +74,42 @@ static int manager_wakeup(void);
 /*
  * helper
  */
-static int send_message(int receiver, message_t *msg)
+static void *manager_timer_func(void)
 {
-	int st = 0;
-	switch(receiver) {
-		case SERVER_DEVICE:
-			st = server_device_message(msg);
-			break;
-		case SERVER_KERNEL:
-	//		st = server_kernel_message(msg);
-			break;
-		case SERVER_REALTEK:
-			st = server_realtek_message(msg);
-			break;
-		case SERVER_MIIO:
-			st = server_miio_message(msg);
-			break;
-		case SERVER_MISS:
-			st = server_miss_message(msg);
-			break;
-		case SERVER_MICLOUD:
-	//		st = server_micloud_message(msg);
-			break;
-		case SERVER_VIDEO:
-			st = server_video_message(msg);
-			break;
-		case SERVER_AUDIO:
-			st = server_audio_message(msg);
-			break;
-		case SERVER_RECORDER:
-			st = server_recorder_message(msg);
-			break;
-		case SERVER_PLAYER:
-			st = server_player_message(msg);
-			break;
-		case SERVER_SPEAKER:
-			st = server_speaker_message(msg);
-			break;
-		case SERVER_VIDEO2:
-			st = server_video2_message(msg);
-			break;
-		case SERVER_SCANNER:
-			st = server_scanner_message(msg);
-			break;
-		case SERVER_MANAGER:
-			st = manager_message(msg);
-			break;
-		default:
-			log_qcy(DEBUG_SERIOUS, "unknown message target! %d", receiver);
-			break;
+    signal(SIGINT, main_thread_termination);
+    signal(SIGTERM, main_thread_termination);
+	pthread_detach(pthread_self());
+	//default task
+	misc_set_bit(&info.error, THREAD_TIMER, 1);
+	misc_set_thread_name("manager_timer");
+	timer_init();
+	while( 1 ) {
+		if(info.exit ) break;
+		if( misc_get_bit(info.thread_exit, THREAD_TIMER) ) break;
+		timer_proc();
+		usleep(100000);
 	}
-	return st;
+	timer_release();
+	misc_set_bit(&info.error, THREAD_TIMER, 0);
+	manager_common_send_dummy(SERVER_MANAGER);
+	log_qcy(DEBUG_INFO, "-----------thread exit: timer-----------");
+	pthread_exit(0);
+}
+
+static int manager_mempool_init(void)
+{
+	int ret = 0;
+    elr_mpl_init();
+    _pool_ = elr_mpl_create(NULL,32768);
+    return ret;
+}
+
+static int manager_mempool_deinit(void)
+{
+	int ret = 0;
+    elr_mpl_destroy(&_pool_);
+    elr_mpl_finalize();
+    return ret;
 }
 
 static int manager_get_property(message_t *msg)
@@ -135,16 +126,18 @@ static int manager_get_property(message_t *msg)
 	send_msg.result = 0;
 	/****************************/
 	if( send_msg.arg_in.cat == MANAGER_PROPERTY_SLEEP) {
-		if( _config_.running_mode == RUNNING_MODE_SLEEP )
-			temp = 0;
-		else if( _config_.running_mode == RUNNING_MODE_NORMAL)
+		if( _config_.sleep.enable == 0 )
 			temp = 1;
+		else if( _config_.sleep.enable == 1 )
+			temp = 0;
+		else if( _config_.sleep.enable == 2 )
+			temp = 2;
 		else
 			log_qcy(DEBUG_WARNING, "----current sleeping status = %d", _config_.running_mode );
 		send_msg.arg = (void*)(&temp);
 		send_msg.arg_size = sizeof(temp);
 	}
-	ret = send_message( msg->receiver, &send_msg);
+	ret = manager_common_send_message( msg->receiver, &send_msg);
 	return ret;
 }
 
@@ -161,48 +154,54 @@ static int manager_set_property(message_t *msg)
 	/****************************/
 	if( msg->arg_in.cat == MANAGER_PROPERTY_SLEEP ) {
 		int temp = *((int*)(msg->arg));
-		if( (temp == 0) && ( _config_.running_mode == RUNNING_MODE_SLEEP) ) {
+		if( ( (temp == 1) && ( _config_.sleep.enable == 0) ) ||
+			( (temp == 0) && ( _config_.sleep.enable == 1) ) ||
+			( (temp == 2) && ( _config_.sleep.enable == 2) ) ) {
 			ret = 0;
 		}
-		else if( (temp == 1) && ( _config_.running_mode == RUNNING_MODE_NORMAL) ) {
-			ret = 0;
-		}
-		else if( temp == 0 ) {
-			if( info.status == STATUS_RUN )
-				ret = manager_sleep();
-			else
-				log_qcy(DEBUG_INFO,"still in previous sleep enter processing");
-		}
-		else if( temp == 1 ) {
-			if( info.status == STATUS_RUN )
-				ret = manager_wakeup();
-			else
-				log_qcy(DEBUG_INFO,"still in previous sleep leaving processing");
+		else {
+			if( temp == 1 ) {
+				if( info.status == STATUS_RUN ) {
+					_config_.running_mode = RUNNING_MODE_NORMAL;
+					_config_.sleep.enable = 0;
+					config_manager_set(0, &_config_);
+					manager_wakeup();
+				}
+				else
+					log_qcy(DEBUG_INFO,"still in previous normal enter processing");
+			}
+			else if( temp == 0 ) {
+				if( info.status == STATUS_RUN ) {
+					_config_.running_mode = RUNNING_MODE_SLEEP;
+					_config_.sleep.enable = 1;
+					config_manager_set(0, &_config_);
+					manager_sleep();
+				}
+				else
+					log_qcy(DEBUG_INFO,"still in previous sleep leaving processing");
+			}
 		}
 	}
 	/***************************/
 	send_msg.result = ret;
-	ret = send_message(msg->receiver, &send_msg);
+	ret = manager_common_send_message(msg->receiver, &send_msg);
 	/***************************/
 	return ret;
 }
 
-static int manager_sleep(void)
+static void manager_send_wakeup(int server)
 {
-	int ret = 0;
-	info.status = STATUS_NONE;
-	info.task.func = task_sleep;
-	_config_.running_mode = RUNNING_MODE_SLEEP;
-	return ret;
+	message_t msg;
+	msg_init(&msg);
+	msg.message = MSG_MANAGER_WAKEUP;
+	msg.sender = msg.receiver = SERVER_MANAGER;
+	manager_common_send_message(server, &msg);
 }
 
-static int manager_wakeup(void)
+static void manager_sleep(void)
 {
-	int ret = 0;
 	info.status = STATUS_NONE;
-	info.task.func = task_normal;
-	_config_.running_mode = RUNNING_MODE_NORMAL;
-	return ret;
+	info.task.func = task_sleep;
 }
 
 static int manager_server_start(int server)
@@ -214,8 +213,8 @@ static int manager_server_start(int server)
 				misc_set_bit(&info.thread_start, SERVER_DEVICE, 1);
 			break;
 		case SERVER_KERNEL:
-	//		if( !server_kernel_start() )
-		//		misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
+//			if( !server_kernel_start() )
+//				misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
 			break;
 		case SERVER_REALTEK:
 			if( !server_realtek_start() )
@@ -272,62 +271,82 @@ static int manager_server_stop(int server)
 	msg_init(&msg);
 	msg.message = MSG_MANAGER_EXIT;
 	msg.sender = msg.receiver = SERVER_MANAGER;
-	ret = send_message(server, &msg);
+	msg.arg_in.cat = info.thread_start;
+	ret = manager_common_send_message(server, &msg);
+	return ret;
+}
+
+static int heart_beat_proc(void)
+{
+	int ret = 0;
+	long long int tick = 0;
+	tick = time_get_now_stamp();
+	if( (tick - info.tick) > 3 ) {
+		info.tick = tick;
+		system("top -n 1 | grep 'Load average:'");
+		system("top -n 1 | grep 'webcam'");
+		system("top -n 1 | grep 'CPU'");
+	}
 	return ret;
 }
 
 static void manager_kill_all(void)
 {
-	log_qcy(DEBUG_SERIOUS, "%%%%%%%%forcefully kill all%%%%%%%%%");
+	log_qcy(DEBUG_INFO, "%%%%%%%%forcefully kill all%%%%%%%%%");
 	exit(0);
 }
 
-static int server_release(void)
+static void manager_broadcast_thread_exit(void)
 {
-	int ret = 0;
-	timer_release();
-	msg_buffer_release(&message);
-	return ret;
 }
 
-static int server_clean(void)
+static void server_release_1(void)
 {
-	int ret = 0;
-	timer_release();
-	msg_buffer_release(&message);
-	return ret;
+}
+
+static void server_release_2(void)
+{
+	sleep_release();
+	msg_buffer_release2(&message, &mutex);
+#ifdef MEMORY_POOL
+    manager_mempool_deinit();
+#endif
+}
+
+static void server_release_3(void)
+{
+	memset(&info, 0, sizeof(server_info_t));
 }
 
 static int server_message_proc(void)
 {
-	int ret = 0, ret1 = 0, i;
+	int ret = 0;
 	message_t msg;
 	message_t send_msg;
+	if( info.msg_lock ) return 0;
+//condition
+	pthread_mutex_lock(&mutex);
+	if( message.head == message.tail ) {
+		if( info.status == info.old_status ) {
+			pthread_cond_wait(&cond,&mutex);
+		}
+	}
 	msg_init(&msg);
-	msg_init(&send_msg);
-	ret = pthread_rwlock_wrlock(&message.lock);
-	if(ret)	{
-		log_qcy(DEBUG_SERIOUS, "add lock fail, ret = %d", ret);
-		return ret;
-	}
 	ret = msg_buffer_pop(&message, &msg);
-	ret1 = pthread_rwlock_unlock(&message.lock);
-	if (ret1) {
-		log_qcy(DEBUG_SERIOUS, "add message unlock fail, ret = %d", ret1);
-	}
-	if( ret == -1) {
-		msg_free(&msg);
-		return -1;
-	}
-	else if( ret == 1) {
+	pthread_mutex_unlock(&mutex);
+	if( ret == 1 ) {
 		return 0;
 	}
+	log_qcy(DEBUG_VERBOSE, "-----pop out from the MANAGER message queue: sender=%d, message=%x, ret=%d, head=%d, tail=%d", msg.sender, msg.message,
+				ret, message.head, message.tail);
+	msg_init(&info.task.msg);
+	msg_deep_copy(&info.task.msg, &msg);
 	switch(msg.message){
 		case MSG_MANAGER_SIGINT:
 		case MSG_DEVICE_SIGINT:
-	//	case MSG_KERNEL_SIGINT:
+		case MSG_KERNEL_SIGINT:
 		case MSG_REALTEK_SIGINT:
-	//	case MSG_MICLOUD_SIGINT:
+//		case MSG_MICLOUD_SIGINT:
 		case MSG_MISS_SIGINT:
 		case MSG_MIIO_SIGINT:
 		case MSG_VIDEO_SIGINT:
@@ -337,85 +356,23 @@ static int server_message_proc(void)
 		case MSG_SPEAKER_SIGINT:
 		case MSG_VIDEO2_SIGINT:
 		case MSG_SCANNER_SIGINT:
-			info.thread_exit = msg.sender;
-			send_msg.message = MSG_MANAGER_EXIT;
-			send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-			for(i=0;i<MAX_SERVER;i++) {
-				if( misc_get_bit( info.thread_start, i) ) {
-					if( (i != SERVER_REALTEK) && (i!=info.thread_exit) )
-						send_message(i, &send_msg);
-				}
+			if( info.task.func != task_exit) {
+				info.task.func = task_exit;
+				info.status = EXIT_INIT;
+				_config_.running_mode = RUNNING_MODE_EXIT;
 			}
-			log_qcy(DEBUG_INFO, "sigint request from server %d, exit code = %x", msg.sender, info.thread_start);
-			if( !info.status2 ) {
-				/********message body********/
-				msg_init(&send_msg);
-				send_msg.message = MSG_MANAGER_TIMER_ADD;
-				send_msg.sender = SERVER_MANAGER;
-				send_msg.arg_in.cat = 5000;
-				send_msg.arg_in.dog = 0;
-				send_msg.arg_in.duck = 1;
-				send_msg.arg_in.handler = &manager_kill_all;
-				manager_message(&msg);
-				/****************************/
-				info.status2 = 1;
+			else {
+				log_qcy(DEBUG_WARNING, "already inside the manager exit task!");
 			}
 			break;
 		case MSG_MANAGER_EXIT_ACK:
 			misc_set_bit(&info.thread_start, msg.sender, 0);
-			if( info.status2 ) {
-				if( info.thread_start == (1<<SERVER_REALTEK) ) {
-					msg_init(&send_msg);
-					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-					send_msg.message = MSG_MANAGER_EXIT;
-					server_realtek_message(&send_msg);
-				}
-				else if( info.thread_start == ( (1<<SERVER_REALTEK) | (1<<info.thread_exit) ) ) {
-					msg_init(&send_msg);
-					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-					send_msg.message = MSG_MANAGER_EXIT;
-					send_message(info.thread_exit,&send_msg);
-					log_qcy(DEBUG_INFO, "termination process--------exiter quit message sent!---%d", info.thread_exit);
-				}
-				else if( info.thread_start == 0 ) {	//quit all
-					info.exit = 1;
-				}
-				log_qcy(DEBUG_INFO, "termination process quit status = %x", info.thread_start);
-			}
-			else if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
-				if( info.thread_start == 0 ) {	//quit all
-					_config_.running_mode == RUNNING_MODE_NORMAL;
-					info.task.func = task_normal;
-					info.task.start = STATUS_NONE;
-					info.task.end = STATUS_RUN;
-					info.status = STATUS_NONE;
-					info.status2 = 0;
-				}
-				else if( info.thread_start == (1<<SERVER_REALTEK) ) {
-					msg_init(&send_msg);
-					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-					send_msg.message = MSG_MANAGER_EXIT;
-					server_realtek_message(&send_msg);
-				}
-				log_qcy(DEBUG_INFO, "scanner process quit status = %x", info.thread_start);
-			}
-			else if( _config_.running_mode == RUNNING_MODE_NORMAL ){
+			if( _config_.running_mode == RUNNING_MODE_NORMAL ){
 				if( _config_.fail_restart ) {
 					manager_server_start(msg.sender);
+					manager_send_wakeup(SERVER_MIIO);
 				}
 				log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
-			}
-			else if( _config_.running_mode == RUNNING_MODE_SLEEP) {
-				if( info.thread_start == (1<<SERVER_MIIO) ) {
-					info.status = STATUS_START;
-				}
-				else if( info.thread_start == ((1<<SERVER_REALTEK)|(1<<SERVER_MIIO)) ) {
-					msg_init(&send_msg);
-					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
-					send_msg.message = MSG_MANAGER_EXIT;
-					server_realtek_message(&send_msg);
-				}
-				log_qcy(DEBUG_INFO, "sleeping process quit status = %x", info.thread_start);
 			}
 			//to do: other mode
 			break;
@@ -443,10 +400,14 @@ static int server_message_proc(void)
 						msg_init(&send_msg);
 						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 						send_msg.message = MSG_MANAGER_EXIT;
-						server_scanner_message(&send_msg);
-						server_speaker_message(&send_msg);
-						server_miio_message(&send_msg);
+						manager_common_send_message(SERVER_SCANNER, &send_msg);
+						manager_common_send_message(SERVER_SPEAKER, &send_msg);
+						manager_common_send_message(SERVER_MIIO, &send_msg);
 						log_qcy(DEBUG_INFO, "---scanner success!---");
+						info.task.func = task_exit;
+						info.status = EXIT_INIT;
+						_config_.running_mode = RUNNING_MODE_EXIT;
+						info.status2 = 1;
 					}
 					else {
 						log_qcy(DEBUG_INFO, "---scanner error status = %d---", msg.arg_in.dog);
@@ -461,6 +422,8 @@ static int server_message_proc(void)
 		case MSG_MANAGER_PROPERTY_SET:
 			manager_set_property(&msg);
 			break;
+		case MSG_MANAGER_DUMMY:
+			break;
 		default:
 			log_qcy(DEBUG_SERIOUS, "not processed message = %x", msg.message);
 			break;
@@ -472,34 +435,9 @@ static int server_message_proc(void)
 /*
  * state machine
  */
-static int task_error(void)
+static void task_sleep(void)
 {
-	switch( info.status )
-	{
-		default:
-			//write kernel out for restart!
-			log_qcy(DEBUG_SERIOUS, "!!!!!!error in manager, quit all!!!");
-			info.exit = 1;
-			break;
-	}
-	return 0;
-}
-
-static int task_none(void)
-{
-	switch( info.status )
-	{
-		case STATUS_NONE:
-			break;
-		default:
-			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_none = %d", info.status);
-			break;
-	}
-	return 0;
-}
-
-static int task_sleep(void)
-{
+	message_t msg;
 	int i;
 	switch( info.status )
 	{
@@ -512,35 +450,93 @@ static int task_sleep(void)
 		case STATUS_SETUP:
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( info.thread_start, i) ) {
-					if( (i != SERVER_MIIO) && (i!= SERVER_REALTEK) )
+					if( (i != SERVER_MIIO) )
 						manager_server_stop(i);
 				}
 			}
 			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
+			if( info.thread_start == (1<<SERVER_MIIO) ) {
+				info.status = STATUS_START;
+				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
+			}
+			else {
+				if( info.task.msg.message == MSG_MANAGER_EXIT_ACK) {
+					msg_init(&msg);
+					msg.message = MSG_MANAGER_EXIT_ACK;
+					msg.sender = msg.receiver = info.task.msg.sender;
+					for(i=0;i<MAX_SERVER;i++) {
+						if( misc_get_bit( info.thread_start, i) ) {
+							manager_common_send_message(i, &msg);
+						}
+					}
+					log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", msg.sender, info.thread_start);
+				}
+			}
 			break;
 		case STATUS_START:
 			info.status = STATUS_RUN;
 			break;
 		case STATUS_RUN:
 			break;
-		case STATUS_STOP:
-			break;
-		case STATUS_RESTART:
-			break;
-		case STATUS_ERROR:
-			info.task.func = task_error;
-			break;
 		default:
-			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_normal = %d", info.status);
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_default = %d", info.status);
 			break;
 	}
-	return 0;
 }
 
+static void task_deep_sleep(void)
+{
+	message_t msg;
+	int i;
+	switch( info.status )
+	{
+		case STATUS_NONE:
+			info.status = STATUS_WAIT;
+			break;
+		case STATUS_WAIT:
+			info.status = STATUS_SETUP;
+			break;
+		case STATUS_SETUP:
+			for(i=0;i<MAX_SERVER;i++) {
+				if( misc_get_bit( info.thread_start, i) ) {
+					manager_server_stop(i);
+				}
+			}
+			info.status = STATUS_IDLE;
+			break;
+		case STATUS_IDLE:
+			if( info.thread_start == 0 ) {
+				info.status = STATUS_START;
+				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
+			}
+			else {
+				if( info.task.msg.message == MSG_MANAGER_EXIT_ACK) {
+					msg_init(&msg);
+					msg.message = MSG_MANAGER_EXIT_ACK;
+					msg.sender = msg.receiver = info.task.msg.sender;
+					for(i=0;i<MAX_SERVER;i++) {
+						if( misc_get_bit( info.thread_start, i) ) {
+							manager_common_send_message(i, &msg);
+						}
+					}
+					log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", msg.sender, info.thread_start);
+				}
+			}
+			break;
+		case STATUS_START:
+			info.status = STATUS_RUN;
+			break;
+		case STATUS_RUN:
+			break;
+		default:
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_default = %d", info.status);
+			break;
+	}
+}
 
-static int task_normal(void)
+static void task_default(void)
 {
 	int i;
 	switch( info.status )
@@ -573,16 +569,17 @@ static int task_normal(void)
 		case STATUS_RESTART:
 			break;
 		case STATUS_ERROR:
-			info.task.func = task_error;
+			info.task.func = task_exit;
+			info.status = EXIT_INIT;
+			_config_.running_mode = RUNNING_MODE_EXIT;
 			break;
 		default:
-			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_normal = %d", info.status);
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_default = %d", info.status);
 			break;
 	}
-	return 0;
 }
 
-static int task_testing(void)
+static void task_testing(void)
 {
 	switch( info.status )
 	{
@@ -607,16 +604,15 @@ static int task_testing(void)
 		case STATUS_RESTART:
 			break;
 		case STATUS_ERROR:
-			info.task.func = task_error;
+			info.exit = 1;
 			break;
 		default:
 			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_testing = %d", info.status);
 			break;
 	}
-	return 0;
 }
 
-static int task_scanner(void)
+static void task_scanner(void)
 {
 	int start, i;
 	switch( info.status )
@@ -649,13 +645,99 @@ static int task_scanner(void)
 		case STATUS_RESTART:
 			break;
 		case STATUS_ERROR:
-			info.task.func = task_error;
+			info.exit = 1;
 			break;
 		default:
 			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_scanner = %d", info.status);
 			break;
 	}
-	return 0;
+}
+
+
+/****************************/
+/*
+ * exit: *->exit
+ */
+static void task_exit(void)
+{
+	message_t msg;
+	int i;
+	switch( info.status ){
+		case EXIT_INIT:
+			log_qcy(DEBUG_INFO,"MANAGER: switch to exit task!");
+			msg_init(&msg);
+			msg.message = MSG_MANAGER_EXIT;
+			msg.sender = msg.receiver = SERVER_MANAGER;
+			msg.arg_in.cat = info.thread_start;
+			for(i=0;i<MAX_SERVER;i++) {
+				if( misc_get_bit( info.thread_start, i) ) {
+					manager_common_send_message(i, &msg);
+				}
+			}
+			log_qcy(DEBUG_INFO, "sigint request get, exit code = %x", info.thread_start);
+			/********message body********/
+			msg_init(&msg);
+			msg.message = MSG_MANAGER_TIMER_ADD;
+			msg.sender = SERVER_MANAGER;
+			msg.arg_in.cat = 5000;
+			msg.arg_in.dog = 0;
+			msg.arg_in.duck = 1;
+			msg.arg_in.handler = &manager_kill_all;
+			manager_common_send_message(SERVER_MANAGER, &msg);
+			/****************************/
+			info.status = EXIT_SERVER;
+			break;
+		case EXIT_SERVER:
+			if( info.thread_start == 0 ) {	//quit all
+				log_qcy(DEBUG_INFO, "termination process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
+				info.status = EXIT_STAGE1;
+			}
+			else {
+				if( info.task.msg.message == MSG_MANAGER_EXIT_ACK) {
+					msg_init(&msg);
+					msg.message = MSG_MANAGER_EXIT_ACK;
+					msg.sender = msg.receiver = info.task.msg.sender;
+					for(i=0;i<MAX_SERVER;i++) {
+						if( misc_get_bit( info.thread_start, i) ) {
+							manager_common_send_message(i, &msg);
+						}
+					}
+					log_qcy(DEBUG_INFO, "termination process quiter is %d and the after status = %x", msg.sender, info.thread_start);
+				}
+			}
+			break;
+		case EXIT_STAGE1:
+			server_release_1();
+			info.status = EXIT_THREAD;
+			break;
+		case EXIT_THREAD:
+			info.thread_exit = info.thread_start;
+			manager_broadcast_thread_exit();
+			if( !info.thread_start )
+				info.status = EXIT_STAGE2;
+			break;
+			break;
+		case EXIT_STAGE2:
+			server_release_2();
+			info.status = EXIT_FINISH;
+			break;
+		case EXIT_FINISH:
+			if( info.status2 ) {
+				info.status2 = 0;
+				info.task.func = task_default;
+				_config_.running_mode = RUNNING_MODE_NORMAL;
+				info.msg_lock = 0;
+			}
+			else {
+				info.exit = 1;
+			}
+			info.status = STATUS_NONE;
+			break;
+		default:
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_exit = %d", info.status);
+			break;
+		}
+	return;
 }
 
 static int main_thread_termination(void)
@@ -667,7 +749,7 @@ static int main_thread_termination(void)
     msg.message = MSG_MANAGER_SIGINT;
 	msg.sender = msg.receiver = SERVER_MANAGER;
     /****************************/
-    manager_message(&msg);
+    manager_common_send_message(SERVER_MANAGER, &msg);
 	return ret;
 }
 
@@ -675,10 +757,21 @@ static int main_thread_termination(void)
 /*
  * internal interface
  */
-int manager_get_debug_level(int type)
+void manager_deep_sleep(void)
 {
-	return _config_.debug_level;
+	info.status = STATUS_NONE;
+	info.task.func = task_deep_sleep;
+	_config_.running_mode = RUNNING_MODE_DEEP_SLEEP;
+	_config_.sleep.enable = 2;
 }
+
+void manager_wakeup(void)
+{
+	info.status = STATUS_NONE;
+	info.task.func = task_default;
+	manager_send_wakeup(SERVER_MIIO);
+}
+
 
 /*
  * external interface
@@ -686,43 +779,42 @@ int manager_get_debug_level(int type)
 int manager_init(void)
 {
 	int ret = 0;
+	pthread_t	id;
     signal(SIGINT, main_thread_termination);
     signal(SIGTERM, main_thread_termination);
 	ret = config_manager_read(&_config_);
 	if( ret )
 		return -1;
-    if( timer_init()!= 0 )
+	ret = pthread_create(&id, NULL, manager_timer_func, NULL);
+	if(ret != 0) {
+		log_qcy(DEBUG_SERIOUS, "timer create error! ret = %d",ret);
+		 return ret;
+	 }
+	else {
+		log_qcy(DEBUG_INFO, "timer create successful!");
+	}
+#ifdef MEMORY_POOL
+    if( manager_mempool_init() )
     	return -1;
-    _config_.timezone = 8;	//temporarily set to utc+8
-	if( !message.init ) {
-		msg_buffer_init(&message, MSG_BUFFER_OVERFLOW_NO);
-	}
-	pthread_rwlock_init(&info.lock, NULL);
+#endif
+    _config_.timezone = 8;			//temporarily set to utc+8
+    _config_.condition_limit = 3;	//3s
+	msg_buffer_init2(&message, MSG_BUFFER_OVERFLOW_NO, &mutex);
+	info.init = 1;
+	//sleep timer
+	sleep_init(_config_.sleep.enable, _config_.sleep.start, _config_.sleep.stop);
 	//default task
-	if( _config_.running_mode == RUNNING_MODE_NONE) {
-		info.task.func = task_none;
-		info.task.start = STATUS_NONE;
-		info.task.end = STATUS_NONE;
-	}
-	else if( _config_.running_mode == RUNNING_MODE_SLEEP ) {
+	if( _config_.running_mode == RUNNING_MODE_SLEEP ) {
 		info.task.func = task_sleep;
-		info.task.start = STATUS_NONE;
-		info.task.end = STATUS_RUN;
 	}
 	else if( _config_.running_mode == RUNNING_MODE_NORMAL ) {
-		info.task.func = task_normal;
-		info.task.start = STATUS_NONE;
-		info.task.end = STATUS_RUN;
+		info.task.func = task_default;
 	}
 	else if( _config_.running_mode == RUNNING_MODE_TESTING ) {
 		info.task.func = task_testing;
-		info.task.start = STATUS_NONE;
-		info.task.end = STATUS_RUN;
 	}
 	else if( _config_.running_mode == RUNNING_MODE_SCANNER ) {
 		info.task.func = task_scanner;
-		info.task.start = STATUS_NONE;
-		info.task.end = STATUS_RUN;
 	}
 	//check scanner
 	char fname[MAX_SYSTEM_STRING_SIZE*2];
@@ -732,8 +824,6 @@ int manager_init(void)
 		if( (access(fname, F_OK))==-1) {
 			_config_.running_mode = RUNNING_MODE_SCANNER;
 			info.task.func = task_scanner;
-			info.task.start = STATUS_NONE;
-			info.task.end = STATUS_RUN;
 		}
 	}
 }
@@ -741,32 +831,29 @@ int manager_init(void)
 int manager_proc(void)
 {
 	if ( !info.exit ) {
+		info.old_status = info.status;
 		info.task.func();
 		server_message_proc();
-		timer_proc();
 	}
 	else {
-		server_release();
-		log_qcy(DEBUG_SERIOUS, "-----------main exit-----------");
+		server_release_3();
+		log_qcy(DEBUG_INFO, "-----------main exit-----------");
 		exit(0);
 	}
 }
 
 int manager_message(message_t *msg)
 {
-	int ret=0,ret1;
-	ret = pthread_rwlock_wrlock(&message.lock);
-	if(ret)	{
-		log_qcy(DEBUG_SERIOUS, "add message lock fail, ret = %d", ret);
-		return ret;
-	}
+	int ret=0;
+	pthread_mutex_lock(&mutex);
 	ret = msg_buffer_push(&message, msg);
 	log_qcy(DEBUG_VERBOSE, "push into the manager message queue: sender=%d, message=%x, ret=%d, head=%d, tail=%d", msg->sender, msg->message, ret,
 				message.head, message.tail);
 	if( ret!=0 )
 		log_qcy(DEBUG_WARNING, "message push in manager error =%d", ret);
-	ret1 = pthread_rwlock_unlock(&message.lock);
-	if (ret1)
-		log_qcy(DEBUG_SERIOUS, "add message unlock fail, ret = %d", ret1);
+	else {
+		pthread_cond_signal(&cond);
+	}
+	pthread_mutex_unlock(&mutex);
 	return ret;
 }
