@@ -675,15 +675,17 @@ static void task_exit(void)
 				}
 			}
 			log_qcy(DEBUG_INFO, "sigint request get, exit code = %x", info.thread_start);
-			/********message body********/
-			msg_init(&msg);
-			msg.message = MSG_MANAGER_TIMER_ADD;
-			msg.sender = SERVER_MANAGER;
-			msg.arg_in.cat = 5000;
-			msg.arg_in.dog = 0;
-			msg.arg_in.duck = 1;
-			msg.arg_in.handler = &manager_kill_all;
-			manager_common_send_message(SERVER_MANAGER, &msg);
+			if( info.status2==0 ) {
+				/********message body********/
+				msg_init(&msg);
+				msg.message = MSG_MANAGER_TIMER_ADD;
+				msg.sender = SERVER_MANAGER;
+				msg.arg_in.cat = 5000;
+				msg.arg_in.dog = 0;
+				msg.arg_in.duck = 1;
+				msg.arg_in.handler = &manager_kill_all;
+				manager_common_send_message(SERVER_MANAGER, &msg);
+			}
 			/****************************/
 			info.status = EXIT_SERVER;
 			break;
