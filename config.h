@@ -16,7 +16,7 @@
 /*
  * define
  */
-#define 	CONFIG_MANAGER_CONFIG_PATH			"./webcam.config"
+#define 	CONFIG_MANAGER_CONFIG_PATH			"/opt/qcy/config/webcam.config"
 
 /*
  * structure

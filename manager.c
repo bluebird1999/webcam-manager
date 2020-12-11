@@ -213,8 +213,8 @@ static int manager_server_start(int server)
 				misc_set_bit(&info.thread_start, SERVER_DEVICE, 1);
 			break;
 		case SERVER_KERNEL:
-//			if( !server_kernel_start() )
-//				misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
+			if( !server_kernel_start() )
+				misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
 			break;
 		case SERVER_REALTEK:
 			if( !server_realtek_start() )
@@ -401,8 +401,8 @@ static int server_message_proc(void)
 						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 						send_msg.message = MSG_MANAGER_EXIT;
 						manager_common_send_message(SERVER_SCANNER, &send_msg);
-						manager_common_send_message(SERVER_SPEAKER, &send_msg);
-						manager_common_send_message(SERVER_MIIO, &send_msg);
+//						manager_common_send_message(SERVER_SPEAKER, &send_msg);
+//						manager_common_send_message(SERVER_MIIO, &send_msg);
 						log_qcy(DEBUG_INFO, "---scanner success!---");
 						info.task.func = task_exit;
 						info.status = EXIT_INIT;
@@ -449,7 +449,7 @@ static void task_sleep(void)
 			break;
 		case STATUS_SETUP:
 			for(i=0;i<MAX_SERVER;i++) {
-				if( misc_get_bit( info.thread_start, i) ) {
+				if( misc_get_bit( info.thread_start, i)) {
 					if( (i != SERVER_MIIO) )
 						manager_server_stop(i);
 				}
@@ -457,7 +457,7 @@ static void task_sleep(void)
 			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
-			if( info.thread_start == (1<<SERVER_MIIO) ) {
+			if( info.thread_start == (1<<SERVER_MIIO)) {
 				info.status = STATUS_START;
 				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
 			}
@@ -784,6 +784,7 @@ int manager_init(void)
 	pthread_t	id;
     signal(SIGINT, main_thread_termination);
     signal(SIGTERM, main_thread_termination);
+    memset(&info, 0, sizeof(server_info_t));
 	ret = config_manager_read(&_config_);
 	if( ret )
 		return -1;

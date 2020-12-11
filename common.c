@@ -78,7 +78,7 @@ int manager_common_send_message(int receiver, message_t *msg)
 			st = server_video2_message(msg);
 			break;
 		case SERVER_SCANNER:
-//			st = server_scanner_message(msg);
+			st = server_scanner_message(msg);
 			break;
 		case SERVER_MANAGER:
 			st = manager_message(msg);
