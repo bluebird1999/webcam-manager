@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.3"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.4"
 
 #define	MAX_SERVER			32
 
@@ -43,7 +43,7 @@
 #define SERVER_SCANNER		13
 #define	SERVER_MANAGER		32
 
-#define TIMER_NUMBER  		16
+#define TIMER_NUMBER  		32
 
 /*
 const char server_name[][MAX_SYSTEM_STRING_SIZE] =
