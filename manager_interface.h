@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.4"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.5"
 
 #define	MAX_SERVER			32
 
@@ -183,5 +183,6 @@ int manager_message(message_t *msg);
 
 int manager_common_send_message(int receiver, message_t *msg);
 void manager_common_send_dummy(int server);
+void manager_common_message_do_delivery(int receiver, message_t *msg);
 
 #endif /* MANAGER_MANAGER_INTERFACE_H_ */

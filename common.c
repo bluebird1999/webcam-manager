@@ -98,3 +98,15 @@ void manager_common_send_dummy(int server)
 	msg.message = MSG_MANAGER_DUMMY;
 	manager_common_send_message(server,&msg);
 }
+
+void manager_common_message_do_delivery(int receiver, message_t *msg)
+{
+	int num = 0;
+	int ret = 0;
+	ret = manager_common_send_message(receiver, &msg);
+	while( (ret!=0) && (num<MESSAGE_RESENT) ) {
+		ret = manager_common_send_message(receiver, &msg);
+		num++;
+		sleep(MESSAGE_RESENT_SLEEP);
+	};
+}

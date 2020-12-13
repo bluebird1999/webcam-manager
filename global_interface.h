@@ -15,14 +15,16 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-4.3"
+#define				APPLICATION_VERSION_STRING	"beta-4.4"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
 #define				FILE_FLUSH_TIME				30000
 #define				SERVER_RESTART_PAUSE		5
 #define				SERVER_HEARTBEAT_INTERVAL	10
-#define				MESSAGE_RESENT				3
+#define				MESSAGE_RESENT				10
+#define				MAX_EQUIRY_TIMES			30
+#define				MESSAGE_RESENT_SLEEP		1000*500
 
 #define				ELR_USE_THREAD				1
 //#define				MEMORY_POOL				1
