@@ -47,7 +47,7 @@
 //variable
 static message_buffer_t message;
 static server_info_t 	info;
-static pthread_rwlock_t	ilock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t	ilock = PTHREAD_RWLOCK_INITIALIZER;
 static pthread_mutex_t	mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t	cond = PTHREAD_COND_INITIALIZER;
 
@@ -214,7 +214,7 @@ static int manager_server_start(int server)
 			break;
 		case SERVER_KERNEL:
 			if( !server_kernel_start() )
-				misc_set_bit(&info.thread_start, SERVER_CONFIG, 1);
+				misc_set_bit(&info.thread_start, SERVER_KERNEL, 1);
 			break;
 		case SERVER_REALTEK:
 			if( !server_realtek_start() )
@@ -457,7 +457,7 @@ static void task_sleep(void)
 			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
-			if( info.thread_start == (1<<SERVER_MIIO)) {
+			if( info.thread_start == (1<<SERVER_MIIO) ) {
 				info.status = STATUS_START;
 				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
 			}
