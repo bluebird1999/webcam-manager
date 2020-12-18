@@ -61,7 +61,6 @@ static void task_scanner(void);
 static void task_exit(void);
 static int main_thread_termination(void);
 //specific
-static void manager_kill_all(void);
 static int manager_server_start(int server);
 static void manager_sleep(void);
 static void manager_send_wakeup(int server);
@@ -82,11 +81,10 @@ static void *manager_timer_func(void)
 	//default task
 	misc_set_bit(&info.error, THREAD_TIMER, 1);
 	misc_set_thread_name("manager_timer");
-	timer_init();
 	while( 1 ) {
 		if(info.exit ) break;
 		if( misc_get_bit(info.thread_exit, THREAD_TIMER) ) break;
-		timer_proc();
+		timer_proc(info.thread_start);
 		usleep(100000);
 	}
 	timer_release();
@@ -290,10 +288,16 @@ static int heart_beat_proc(void)
 	return ret;
 }
 
-static void manager_kill_all(void)
+static void manager_kill_all(message_arg_t *msg)
 {
 	log_qcy(DEBUG_INFO, "%%%%%%%%forcefully kill all%%%%%%%%%");
 	exit(0);
+}
+
+static void manager_delayed_start(message_arg_t *msg)
+{
+	manager_server_start(msg->cat);
+	manager_send_wakeup(SERVER_MIIO);
 }
 
 static void manager_broadcast_thread_exit(void)
@@ -369,19 +373,28 @@ static int server_message_proc(void)
 			misc_set_bit(&info.thread_start, msg.sender, 0);
 			if( _config_.running_mode == RUNNING_MODE_NORMAL ){
 				if( _config_.fail_restart ) {
-					manager_server_start(msg.sender);
-					manager_send_wakeup(SERVER_MIIO);
+					/********message body********/
+					msg_init(&send_msg);
+					send_msg.message = MSG_MANAGER_TIMER_ADD;
+					send_msg.sender = SERVER_MANAGER;
+					send_msg.arg_in.cat = _config_.fail_restart_interval * 1000;
+					send_msg.arg_in.dog = 0;
+					send_msg.arg_in.duck = 1;
+					send_msg.arg_in.handler = manager_delayed_start;
+					send_msg.arg_pass.cat = msg.sender;
+					manager_common_send_message(SERVER_MANAGER, &send_msg);
+					/*****************************/
 				}
 				log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
 			}
 			//to do: other mode
 			break;
 		case MSG_MANAGER_TIMER_ADD:
-			if( timer_add(msg.arg_in.handler, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck, msg.sender) )
+			if( timer_add(msg.arg_in.handler, msg.arg_in.cat, msg.arg_in.dog, msg.arg_in.duck, msg.sender, msg.arg_pass) )
 				log_qcy(DEBUG_WARNING, "add timer failed!");
 			break;
 		case MSG_MANAGER_TIMER_ACK:
-			((HANDLER)msg.arg_in.handler)();
+			( *( void(*)(message_arg_t*) ) msg.arg_in.handler )(&(msg.arg_pass));
 			break;
 		case MSG_MANAGER_TIMER_REMOVE:
 			if( timer_remove(msg.arg_in.handler) ) {
@@ -784,6 +797,7 @@ int manager_init(void)
 	pthread_t	id;
     signal(SIGINT, main_thread_termination);
     signal(SIGTERM, main_thread_termination);
+	timer_init();
     memset(&info, 0, sizeof(server_info_t));
 	ret = config_manager_read(&_config_);
 	if( ret )

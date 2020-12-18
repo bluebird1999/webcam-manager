@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.6"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-4.7"
 
 #define	MAX_SERVER			32
 
@@ -130,6 +130,7 @@ typedef enum server_status_t {
 	TASK_IDLE,
 	TASK_RUN,
 	TASK_FINISH,
+	TASK_FINISH2,
 
 	EXIT_INIT = 1000,		//quit start
 	EXIT_SERVER,
@@ -172,7 +173,8 @@ typedef struct timer_struct_t
     int				delay;
     unsigned int    interval;
     int		      	oneshot;
-    HANDLER   		fpcallback;
+    void   			*fpcallback;
+    message_arg_t	arg;
 } timer_struct_t;
 
 /*

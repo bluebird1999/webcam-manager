@@ -27,7 +27,7 @@
 //variable
 static int timer_run = 0;
 static timer_struct_t timers[TIMER_NUMBER];
-static pthread_rwlock_t timer_lock ;
+static pthread_rwlock_t timer_lock = PTHREAD_RWLOCK_INITIALIZER;
 //function;
 static unsigned int timer_get_ms(void);
 
@@ -54,20 +54,14 @@ static unsigned int timer_get_ms(void)
 /*
  * interface
  */
-int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, int sender)
+int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, int sender, message_arg_t arg)
 {
     int i;
     int ret = 0;
     if ((timer_run == 0) || (task_handler == NULL)) {
         return -1;
     }
-    ret = pthread_rwlock_trywrlock(&timer_lock);
-    if (ret!=0) {
-    	log_qcy( DEBUG_SERIOUS, "write lock obatain failed!");
-    	pthread_rwlock_unlock(&timer_lock);
-    	return -1;
-    }
-
+    pthread_rwlock_wrlock(&timer_lock);
     int usable_id = 1110;
     for (i = 0; i < TIMER_NUMBER; i++) {
         if (timers[i].tid == 0 && (usable_id == 1110)) {
@@ -95,16 +89,13 @@ int timer_add(HANDLER const task_handler, int interval, int delay, int oneshot, 
     timers[i].oneshot = oneshot;
     timers[i].delay = delay;
     timers[i].sender = sender;
+    memcpy(&timers[i].arg, &arg, sizeof(message_arg_t));
 
     if( timers[i].delay == -1 )
     	timers[i].tick = 0;
     else
     	timers[i].tick = timer_get_ms() + delay;
-out:
-    ret = pthread_rwlock_unlock(&timer_lock);
-    if (ret!=0) {
-    	log_qcy(DEBUG_SERIOUS, "un-write lock obatain failed!");
-    }
+out:    pthread_rwlock_unlock(&timer_lock);
     return ret;
 }
 
@@ -121,7 +112,7 @@ int timer_remove(HANDLER const task_handler)
     }
     if(i != TIMER_NUMBER)
     {
-        pthread_rwlock_trywrlock(&timer_lock);
+        pthread_rwlock_wrlock(&timer_lock);
         memset(&timers[i],0,sizeof(timer_struct_t));
         pthread_rwlock_unlock(&timer_lock);
     }
@@ -141,7 +132,7 @@ int timer_init(void)
 	return ret;
 }
 
-int timer_proc(void)
+int timer_proc(int server)
 {
     int i, ret=0;
     timer_struct_t *timer;
@@ -150,9 +141,15 @@ int timer_proc(void)
 
 	for(i = 0; i < TIMER_NUMBER; i++) {
 		if( timers[i].tid != 0 ) {
-			pthread_rwlock_trywrlock(&timer_lock);
+			pthread_rwlock_wrlock(&timer_lock);
 			timer = &timers[i];
 			now = timer_get_ms();
+			if( (misc_get_bit( server, timer->sender ) == 0)
+					&& (timer->sender != 32) ) {	//if server is already gone
+				memset(timer,0,sizeof(timer_struct_t));
+				pthread_rwlock_unlock(&timer_lock);
+				continue;
+			}
 			if( ( now < timer->tick) || (now > (timer->tick + timer->interval)) ) {
 				memcpy(&extimer,timer,sizeof(timer_struct_t));
 				if(timer->oneshot == 1) {
@@ -169,7 +166,8 @@ int timer_proc(void)
 				msg.message = MSG_MANAGER_TIMER_ACK;
 				msg.sender = SERVER_MANAGER;
 				msg.receiver = extimer.sender;
-				msg.arg_in.handler = (void*)extimer.fpcallback;
+				msg.arg_in.handler = extimer.fpcallback;
+				memcpy(&msg.arg_pass, &extimer.arg, sizeof(message_arg_t));
 				/****************************/
 				manager_common_send_message(extimer.sender, &msg);
 			}
