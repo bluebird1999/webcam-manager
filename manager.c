@@ -150,6 +150,7 @@ static int manager_set_property(message_t *msg)
 	send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 	send_msg.arg_in.cat = msg->arg_in.cat;
 	/****************************/
+	send_msg.arg_in.wolf = 0;
 	if( msg->arg_in.cat == MANAGER_PROPERTY_SLEEP ) {
 		int temp = *((int*)(msg->arg));
 		if( ( (temp == 1) && ( _config_.sleep.enable == 0) ) ||
@@ -164,9 +165,11 @@ static int manager_set_property(message_t *msg)
 					_config_.sleep.enable = 0;
 					config_manager_set(0, &_config_);
 					manager_wakeup();
+					send_msg.arg_in.wolf = 1;
 				}
-				else
+				else {
 					log_qcy(DEBUG_INFO,"still in previous normal enter processing");
+				}
 			}
 			else if( temp == 0 ) {
 				if( info.status == STATUS_RUN ) {
@@ -174,11 +177,15 @@ static int manager_set_property(message_t *msg)
 					_config_.sleep.enable = 1;
 					config_manager_set(0, &_config_);
 					manager_sleep();
+					send_msg.arg_in.wolf = 1;
 				}
-				else
+				else {
 					log_qcy(DEBUG_INFO,"still in previous sleep leaving processing");
+				}
 			}
 		}
+		send_msg.arg = (void*)(&temp);
+		send_msg.arg_size = sizeof(temp);
 	}
 	/***************************/
 	send_msg.result = ret;
