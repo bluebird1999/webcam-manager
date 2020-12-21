@@ -57,7 +57,7 @@ int manager_common_send_message(int receiver, message_t *msg)
 			st = server_miss_message(msg);
 			break;
 		case SERVER_MICLOUD:
-	//		st = server_micloud_message(msg);
+			st = server_micloud_message(msg);
 			break;
 		case SERVER_VIDEO:
 			st = server_video_message(msg);

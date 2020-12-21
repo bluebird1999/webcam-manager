@@ -23,7 +23,7 @@
 #include "../server/video/video_interface.h"
 #include "../server/miio/miio_interface.h"
 #include "../server/miss/miss_interface.h"
-//#include "../server/micloud/micloud_interface.h"
+#include "../server/micloud/micloud_interface.h"
 #include "../server/realtek/realtek_interface.h"
 #include "../server/device/device_interface.h"
 #include "../server/kernel/kernel_interface.h"
@@ -234,8 +234,8 @@ static int manager_server_start(int server)
 				misc_set_bit(&info.thread_start, SERVER_MISS, 1);
 			break;
 		case SERVER_MICLOUD:
-//			if( !server_micloud_start() )
-//				misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
+			if( !server_micloud_start() )
+				misc_set_bit(&info.thread_start, SERVER_MICLOUD, 1);
 			break;
 		case SERVER_VIDEO:
 			if( !server_video_start() )
@@ -357,7 +357,7 @@ static int server_message_proc(void)
 		case MSG_DEVICE_SIGINT:
 		case MSG_KERNEL_SIGINT:
 		case MSG_REALTEK_SIGINT:
-//		case MSG_MICLOUD_SIGINT:
+		case MSG_MICLOUD_SIGINT:
 		case MSG_MISS_SIGINT:
 		case MSG_MIIO_SIGINT:
 		case MSG_VIDEO_SIGINT:

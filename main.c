@@ -19,10 +19,10 @@
 #include "../server/video/video_interface.h"
 #include "../server/miio/miio_interface.h"
 #include "../server/miss/miss_interface.h"
-//#include "../server/micloud/micloud_interface.h"
+#include "../server/micloud/micloud_interface.h"
 #include "../server/realtek/realtek_interface.h"
 #include "../server/device/device_interface.h"
-//#include "../server/kernel/kernel_interface.h"
+#include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
 #include "../server/speaker/speaker_interface.h"
@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "manager",SERVER_MANAGER_VERSION_STRING);
 	printf("%10s: %s\r\n", "tools",TOOLS_VERSION_STRING);
 	printf("%10s: %s\r\n", "device",SERVER_DEVICE_VERSION_STRING);
-	printf("%10s: %s\r\n", "kernel","none");
-	printf("%10s: %s\r\n", "micloud","none");
+	printf("%10s: %s\r\n", "kernel",SERVER_KERNEL_VERSION_STRING);
+	printf("%10s: %s\r\n", "micloud",SERVER_MICLOUD_VERSION_STRING);
 	printf("%10s: %s\r\n", "miio",SERVER_MIIO_VERSION_STRING);
 	printf("%10s: %s\r\n", "miss",SERVER_MISS_VERSION_STRING);
 	printf("%10s: %s\r\n", "realtek",SERVER_REALTEK_VERSION_STRING);
