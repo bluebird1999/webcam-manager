@@ -20,7 +20,6 @@
 #include <fcntl.h>
 //program header
 #include "../server/audio/audio_interface.h"
-#include "../server/video/video_interface.h"
 #include "../server/miio/miio_interface.h"
 #include "../server/miss/miss_interface.h"
 #include "../server/micloud/micloud_interface.h"
@@ -31,11 +30,13 @@
 #include "../server/player/player_interface.h"
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
-#include "../server/video2/video2_interface.h"
 #include "../server/scanner/scanner_interface.h"
 
 //server header
 #include "manager.h"
+
+#include "../server/video/video_interface.h"
+#include "../server/video2/video2_interface.h"
 #include "global_interface.h"
 #include "manager_interface.h"
 #include "timer.h"
@@ -334,13 +335,16 @@ static int server_message_proc(void)
 	int ret = 0;
 	message_t msg;
 	message_t send_msg;
-	if( info.msg_lock ) return 0;
 //condition
 	pthread_mutex_lock(&mutex);
 	if( message.head == message.tail ) {
 		if( info.status == info.old_status ) {
 			pthread_cond_wait(&cond,&mutex);
 		}
+	}
+	if( info.msg_lock ) {
+		pthread_mutex_unlock(&mutex);
+		return 0;
 	}
 	msg_init(&msg);
 	ret = msg_buffer_pop(&message, &msg);

@@ -15,7 +15,7 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-5.1"
+#define				APPLICATION_VERSION_STRING	"beta-5.2"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
@@ -84,7 +84,7 @@ typedef struct manager_config_t {
 /*
  * function
  */
-
+void signal_handler(int sig);
 /*
  * global variables
  */

@@ -13,10 +13,10 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <execinfo.h>
 //program header
 #include "manager_interface.h"
 #include "../server/audio/audio_interface.h"
-#include "../server/video/video_interface.h"
 #include "../server/miio/miio_interface.h"
 #include "../server/miss/miss_interface.h"
 #include "../server/micloud/micloud_interface.h"
@@ -27,8 +27,9 @@
 #include "../server/player/player_interface.h"
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
-#include "../server/video2/video2_interface.h"
 #include "../server/scanner/scanner_interface.h"
+#include "../server/video/video_interface.h"
+#include "../server/video2/video2_interface.h"
 #include "watchdog_interface.h"
 //server header
 
@@ -47,9 +48,35 @@
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 
+
+
 /*
  * helper
  */
+void signal_handler(int sig)
+{
+    switch(sig)
+    {
+        case SIGSEGV:
+        case SIGFPE:
+        case SIGBUS: {
+			void*   array[20];
+			size_t  size;
+			char**  strings;
+			size_t  i;
+			size = backtrace(array, 20);
+			strings = backtrace_symbols(array, size);
+			for (i=0; i< size; i++) {
+				printf("%s\n", strings[i]);
+			}
+			free(strings);
+			exit(EXIT_FAILURE);
+			break;
+        }
+        default:
+            break;
+    }
+}
 
 /*
  * 	Main function, entry point
@@ -59,6 +86,10 @@
  */
 int main(int argc, char *argv[])
 {
+    signal(SIGSEGV, signal_handler);
+    signal(SIGFPE,  signal_handler);
+    signal(SIGBUS,  signal_handler);
+
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
 	printf("   webcam started\r\n");
 	printf("---version---\r\n");
