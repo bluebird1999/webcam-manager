@@ -428,10 +428,14 @@ static int server_message_proc(void)
 //						manager_common_send_message(SERVER_SPEAKER, &send_msg);
 //						manager_common_send_message(SERVER_MIIO, &send_msg);
 						log_qcy(DEBUG_INFO, "---scanner success!---");
-						info.task.func = task_exit;
-						info.status = EXIT_INIT;
-						_config_.running_mode = RUNNING_MODE_EXIT;
-						info.status2 = 1;
+//						info.task.func = task_exit;
+//						info.status = EXIT_INIT;
+//						_config_.running_mode = RUNNING_MODE_EXIT;
+//						info.status2 = 1;
+						info.task.func = task_default;
+						info.status = STATUS_NONE;
+						_config_.running_mode = RUNNING_MODE_NORMAL;
+						info.status2 = 0;
 					}
 					else {
 						log_qcy(DEBUG_INFO, "---scanner error status = %d---", msg.arg_in.dog);
