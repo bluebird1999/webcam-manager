@@ -31,12 +31,10 @@
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "../server/scanner/scanner_interface.h"
-
-//server header
-#include "manager.h"
-
 #include "../server/video/video_interface.h"
 #include "../server/video2/video2_interface.h"
+//server header
+#include "manager.h"
 #include "global_interface.h"
 #include "manager_interface.h"
 #include "timer.h"
@@ -60,7 +58,7 @@ static void task_default(void);
 static void task_testing(void);
 static void task_scanner(void);
 static void task_exit(void);
-static int main_thread_termination(void);
+static void main_thread_termination(void);
 //specific
 static int manager_server_start(int server);
 static void manager_sleep(void);
@@ -327,6 +325,7 @@ static void server_release_2(void)
 
 static void server_release_3(void)
 {
+	msg_free(&info.task.msg);
 	memset(&info, 0, sizeof(server_info_t));
 }
 
@@ -355,7 +354,7 @@ static int server_message_proc(void)
 	log_qcy(DEBUG_VERBOSE, "-----pop out from the MANAGER message queue: sender=%d, message=%x, ret=%d, head=%d, tail=%d", msg.sender, msg.message,
 				ret, message.head, message.tail);
 	msg_init(&info.task.msg);
-	msg_deep_copy(&info.task.msg, &msg);
+	msg_copy(&info.task.msg, &msg);
 	switch(msg.message){
 		case MSG_MANAGER_SIGINT:
 		case MSG_DEVICE_SIGINT:
@@ -708,7 +707,7 @@ static void task_exit(void)
 				msg_init(&msg);
 				msg.message = MSG_MANAGER_TIMER_ADD;
 				msg.sender = SERVER_MANAGER;
-				msg.arg_in.cat = 5000;
+				msg.arg_in.cat = 10000;
 				msg.arg_in.dog = 0;
 				msg.arg_in.duck = 1;
 				msg.arg_in.handler = &manager_kill_all;
@@ -770,9 +769,8 @@ static void task_exit(void)
 	return;
 }
 
-static int main_thread_termination(void)
+static void main_thread_termination(void)
 {
-	int ret=0;
     message_t msg;
     /********message body********/
     msg_init(&msg);
@@ -780,7 +778,6 @@ static int main_thread_termination(void)
 	msg.sender = msg.receiver = SERVER_MANAGER;
     /****************************/
     manager_common_send_message(SERVER_MANAGER, &msg);
-	return ret;
 }
 
 
