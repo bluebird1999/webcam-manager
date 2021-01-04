@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <signal.h>
 #include <malloc.h>
+#ifdef DMALLOC_ENABLE
+#include <dmalloc.h>
+#endif
 //program header
 
 //server header

@@ -12,6 +12,9 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <malloc.h>
+#ifdef DMALLOC_ENABLE
+#include <dmalloc.h>
+#endif
 //program header
 #include "../tools/tools_interface.h"
 //server header
@@ -25,7 +28,8 @@
 static manager_config_t			manager_config;
 static config_map_t manager_config_profile_map[] = {
 	{"running_mode",     		&(manager_config.running_mode),      	cfg_u8, 	0,0,0,100,  	},
-	{"server_start",     		&(manager_config.server_start),      	cfg_u32, 	0,0,0,10000000,  	},
+	{"server_start",     		&(manager_config.server_start),      	cfg_u32, 	0,0,0,10000000,  },
+	{"server_sleep",     		&(manager_config.server_sleep),      	cfg_u32, 	0,0,0,10000000,  	},
 	{"qcy_path",      			&(manager_config.qcy_path),       		cfg_string,	"0",0,0,64,},
 	{"miio_path",      			&(manager_config.miio_path),   			cfg_string,	"0",0,0,64,},
 	{"fail_restart",     		&(manager_config.fail_restart),      	cfg_u8, 	0,0,0,10,  	},

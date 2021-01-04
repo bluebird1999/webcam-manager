@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-5.3"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-6.0"
 
 #define	MAX_SERVER			32
 
@@ -41,6 +41,7 @@
 #define SERVER_SPEAKER		11
 #define SERVER_VIDEO2		12
 #define SERVER_SCANNER		13
+#define SERVER_VIDEO3		14
 #define	SERVER_MANAGER		32
 
 #define TIMER_NUMBER  		32

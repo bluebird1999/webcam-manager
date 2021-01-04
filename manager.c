@@ -18,6 +18,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#ifdef DMALLOC_ENABLE
+#include <dmalloc.h>
+#endif
 //program header
 #include "../server/audio/audio_interface.h"
 #include "../server/miio/miio_interface.h"
@@ -31,6 +34,7 @@
 #include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "../server/scanner/scanner_interface.h"
+#include "../server/video3/video3_interface.h"
 #include "../server/video/video_interface.h"
 #include "../server/video2/video2_interface.h"
 //server header
@@ -39,6 +43,7 @@
 #include "manager_interface.h"
 #include "timer.h"
 #include "config.h"
+#include "main.h"
 
 /*
  * static
@@ -202,6 +207,19 @@ static void manager_send_wakeup(int server)
 	manager_common_send_message(server, &msg);
 }
 
+static void sleep_test(void)
+{
+	static time = 0;
+	if( time < 10 ) {
+		manager_sleep();
+		time++;
+	}
+	else {
+		main_thread_termination();
+	}
+
+}
+
 static void manager_sleep(void)
 {
 	info.status = STATUS_NONE;
@@ -264,6 +282,10 @@ static int manager_server_start(int server)
 			if( !server_scanner_start() )
 				misc_set_bit(&info.thread_start, SERVER_SCANNER, 1);
 			break;
+		case SERVER_VIDEO3:
+			if( !server_video3_start() )
+				misc_set_bit(&info.thread_start, SERVER_VIDEO3, 1);
+			break;
 	}
 	return ret;
 }
@@ -321,6 +343,7 @@ static void server_release_2(void)
 #ifdef MEMORY_POOL
     manager_mempool_deinit();
 #endif
+    log_redirect_close();
 }
 
 static void server_release_3(void)
@@ -370,6 +393,7 @@ static int server_message_proc(void)
 		case MSG_SPEAKER_SIGINT:
 		case MSG_VIDEO2_SIGINT:
 		case MSG_SCANNER_SIGINT:
+		case MSG_VIDEO3_SIGINT:
 			if( info.task.func != task_exit) {
 				info.task.func = task_exit;
 				info.status = EXIT_INIT;
@@ -477,14 +501,16 @@ static void task_sleep(void)
 		case STATUS_SETUP:
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( info.thread_start, i)) {
-					if( (i != SERVER_MIIO) )
-						manager_server_stop(i);
+					if(misc_get_bit( _config_.server_sleep, i)) {
+						if( (i != SERVER_MIIO) )
+							manager_server_stop(i);
+					}
 				}
 			}
 			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
-			if( info.thread_start == (1<<SERVER_MIIO) ) {
+			if( info.thread_start == ((~_config_.server_sleep) & 0x3FFF)) {
 				info.status = STATUS_START;
 				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
 			}
@@ -506,6 +532,7 @@ static void task_sleep(void)
 			info.status = STATUS_RUN;
 			break;
 		case STATUS_RUN:
+//			manager_wakeup();
 			break;
 		default:
 			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_default = %d", info.status);
@@ -566,6 +593,7 @@ static void task_deep_sleep(void)
 static void task_default(void)
 {
 	int i;
+	message_t	msg;
 	switch( info.status )
 	{
 		case STATUS_NONE:
@@ -608,6 +636,8 @@ static void task_default(void)
 
 static void task_testing(void)
 {
+	int i;
+	message_t	msg;
 	switch( info.status )
 	{
 		case STATUS_NONE:
@@ -617,11 +647,27 @@ static void task_testing(void)
 			info.status = STATUS_SETUP;
 			break;
 		case STATUS_SETUP:
+			for(i=0;i<MAX_SERVER;i++) {
+				if( misc_get_bit( _config_.server_start, i) ) {
+					if( misc_get_bit( info.thread_start, i) != 1 )
+						manager_server_start(i);
+				}
+			}
+			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
 			info.status = STATUS_START;
 			break;
 		case STATUS_START:
+			/********message body********/
+			msg_init(&msg);
+			msg.message = MSG_MANAGER_TIMER_ADD;
+			msg.sender = SERVER_MANAGER;
+			msg.arg_in.cat = 3600*1000*10;
+			msg.arg_in.dog = 0;
+			msg.arg_in.duck = 1;
+			msg.arg_in.handler = &main_thread_termination;
+			manager_common_send_message(SERVER_MANAGER, &msg);
 			info.status = STATUS_RUN;
 			break;
 		case STATUS_RUN:
@@ -631,10 +677,12 @@ static void task_testing(void)
 		case STATUS_RESTART:
 			break;
 		case STATUS_ERROR:
-			info.exit = 1;
+			info.task.func = task_exit;
+			info.status = EXIT_INIT;
+			_config_.running_mode = RUNNING_MODE_EXIT;
 			break;
 		default:
-			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_testing = %d", info.status);
+			log_qcy(DEBUG_SERIOUS, "!!!!!!!unprocessed server status in task_default = %d", info.status);
 			break;
 	}
 }
@@ -711,7 +759,7 @@ static void task_exit(void)
 				msg.arg_in.dog = 0;
 				msg.arg_in.duck = 1;
 				msg.arg_in.handler = &manager_kill_all;
-				manager_common_send_message(SERVER_MANAGER, &msg);
+//				manager_common_send_message(SERVER_MANAGER, &msg);
 			}
 			/****************************/
 			info.status = EXIT_SERVER;

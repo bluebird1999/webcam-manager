@@ -15,11 +15,11 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-5.5"
+#define				APPLICATION_VERSION_STRING	"beta-6.0"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
-#define				FILE_FLUSH_TIME				30000
+#define				FILE_FLUSH_TIME				1000
 #define				SERVER_RESTART_PAUSE		5
 #define				SERVER_HEARTBEAT_INTERVAL	10
 #define				MESSAGE_RESENT				10
@@ -27,7 +27,8 @@
 #define				MESSAGE_RESENT_SLEEP		1000*500
 
 #define				ELR_USE_THREAD				1
-//#define				MEMORY_POOL				1
+//#define			MEMORY_POOL				1
+#define				DMALLOC_ENABLE				1
 
 /*
  * structure
@@ -67,6 +68,7 @@ typedef struct manager_sleep_t {
 typedef struct manager_config_t {
 	unsigned char			running_mode;
 	unsigned int			server_start;
+	unsigned int			server_sleep;
 	unsigned char			qcy_path[MAX_SYSTEM_STRING_SIZE*2];
 	unsigned char			miio_path[MAX_SYSTEM_STRING_SIZE*2];
 	unsigned char			fail_restart;

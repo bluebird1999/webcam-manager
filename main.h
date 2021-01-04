@@ -16,5 +16,6 @@
 /*
  * function
  */
+void log_redirect_close(void);
 
 #endif /*MANAGER_MAIN_H_*/

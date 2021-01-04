@@ -16,7 +16,9 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <malloc.h>
-
+#ifdef DMALLOC_ENABLE
+#include <dmalloc.h>
+#endif
 //program header
 #include "../tools/tools_interface.h"
 //server header
@@ -80,6 +82,9 @@ int manager_common_send_message(int receiver, message_t *msg)
 			break;
 		case SERVER_SCANNER:
 			st = server_scanner_message(msg);
+			break;
+		case SERVER_VIDEO3:
+			st = server_video3_message(msg);
 			break;
 		case SERVER_MANAGER:
 			st = manager_message(msg);
