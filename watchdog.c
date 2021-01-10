@@ -16,6 +16,7 @@
 //program header
 
 //server header
+#include "manager_interface.h"
 #include "watchdog.h"
 #include "watchdog_interface.h"
 
@@ -33,15 +34,12 @@
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 
-
-
-int watchdog_init(void)
-{
-	return 0;
-}
-
 int watchdog_proc(void)
 {
 	return 0;
 }
 
+int watchdog_init(void)
+{
+	return 0;
+}

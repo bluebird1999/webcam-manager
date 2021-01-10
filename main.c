@@ -63,31 +63,6 @@ static void log_check(void);
 /*
  * helper
  */
-void signal_handler(int sig)
-{
-    switch(sig)
-    {
-        case SIGSEGV:
-        case SIGFPE:
-        case SIGBUS: {
-			void*   array[20];
-			size_t  size;
-			char**  strings;
-			size_t  i;
-			size = backtrace(array, 20);
-			strings = backtrace_symbols(array, size);
-			for (i=0; i< size; i++) {
-				printf("%s\n", strings[i]);
-			}
-			free(strings);
-			exit(EXIT_FAILURE);
-			break;
-        }
-        default:
-            break;
-    }
-}
-
 void log_redirect_close(void)
 {
 	if(logFd != NULL)
@@ -98,7 +73,7 @@ void log_redirect_close(void)
 
 static void log_redirect(void)
 {
-	char *p = NULL;
+	char *p;
 	p = getenv("LOG_REDIRECT_PATH");
 
 	if(p == NULL)
@@ -160,11 +135,7 @@ static void log_check(void)
  */
 int main(int argc, char *argv[])
 {
-    	signal(SIGSEGV, signal_handler);
-    	signal(SIGFPE,  signal_handler);
-    	signal(SIGBUS,  signal_handler);
-	
-	log_redirect();
+//	log_redirect();
 
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
 	printf("   webcam started\r\n");
@@ -188,12 +159,13 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "scanner",SERVER_SCANNER_VERSION_STRING);
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
 	manager_init();
+	watchdog_init();
 
 /*
  * main loop
  */
 	while(1) {
-		log_check();
+	log_check();
 	/*
 	 * manager proc
 	 */

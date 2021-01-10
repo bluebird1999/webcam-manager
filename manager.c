@@ -98,6 +98,37 @@ static void *manager_timer_func(void)
 	pthread_exit(0);
 }
 
+static int manager_routine_proc(void)
+{
+	if( _config_.cache_clean ) {
+		system("sync");
+		usleep(1000);
+		system("echo 1 > /proc/sys/vm/drop_caches");
+	}
+	//***
+	malloc_trim();
+//	malloc_stats();
+	system("cat /proc/buddyinfo");
+	//***
+}
+
+static int manager_routine_init(void)
+{
+	int ret;
+	message_t msg;
+	/********message body********/
+	msg_init(&msg);
+	msg.message = MSG_MANAGER_TIMER_ADD;
+	msg.sender = SERVER_MANAGER;
+	msg.arg_in.cat = 60*1000;
+	msg.arg_in.dog = 0;
+	msg.arg_in.duck = 0;
+	msg.arg_in.handler = manager_routine_proc;
+	ret = manager_common_send_message(SERVER_MANAGER, &msg);
+	/****************************/
+	return ret;
+}
+
 static int manager_mempool_init(void)
 {
 	int ret = 0;
@@ -190,6 +221,13 @@ static int manager_set_property(message_t *msg)
 		}
 		send_msg.arg = (void*)(&temp);
 		send_msg.arg_size = sizeof(temp);
+	}
+	else if( msg->arg_in.cat == MANAGER_PROPERTY_TIMEZONE ) {
+		if( msg->arg_in.cat != _config_.timezone ) {
+			log_qcy(DEBUG_INFO,"++++++++Set the timezone to %d++++++++", msg->arg_in.cat);
+			_config_.timezone = msg->arg_in.cat;
+			config_manager_set(0, &_config_);
+		}
 	}
 	/***************************/
 	send_msg.result = ret;
@@ -699,7 +737,8 @@ static void task_scanner(void)
 			info.status = STATUS_SETUP;
 			break;
 		case STATUS_SETUP:
-			start = 10264;//2072; //10100000011000, miio, realtek, speaker, scanner;
+//			start = 10264;//2072; //10100000011000, miio, realtek, speaker, scanner;
+			start = 10266;//2072; //10100000011000, miio, realtek, speaker, scanner, device;
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( start, i) ) {
 					manager_server_start(i);
@@ -874,12 +913,12 @@ int manager_init(void)
     if( manager_mempool_init() )
     	return -1;
 #endif
-    _config_.timezone = 8;			//temporarily set to utc+8
     _config_.condition_limit = 3;	//3s
-	msg_buffer_init2(&message, MSG_BUFFER_OVERFLOW_NO, &mutex);
+	msg_buffer_init2(&message, _config_.msg_overrun, &mutex);
 	info.init = 1;
 	//sleep timer
 	sleep_init(_config_.sleep.enable, _config_.sleep.start, _config_.sleep.stop);
+	manager_routine_init();
 	//default task
 	if( _config_.running_mode == RUNNING_MODE_SLEEP ) {
 		info.task.func = task_sleep;

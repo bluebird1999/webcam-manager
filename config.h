@@ -16,6 +16,9 @@
 /*
  * define
  */
+#define		CONFIG_MANAGER_MODULE_NUM			1
+#define		CONFIG_MANAGER_PROFILE				0
+
 #define 	CONFIG_MANAGER_CONFIG_PATH			"/opt/qcy/config/webcam.config"
 
 /*

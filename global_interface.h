@@ -12,10 +12,11 @@
  * header
  */
 #include "../tools/tools_interface.h"
+
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-6.0"
+#define				APPLICATION_VERSION_STRING	"beta-7.0"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
@@ -33,6 +34,11 @@
 /*
  * structure
  */
+typedef enum manager_memory_mode_t {
+	MEMORY_MODE_SHARED = 0,
+	MEMORY_MODE_DYNAMIC,
+};
+
 typedef enum manager_running_mode_t {
 	RUNNING_MODE_NONE,			//	0
 	RUNNING_MODE_SLEEP,			//		1
@@ -79,6 +85,13 @@ typedef struct manager_config_t {
 	unsigned char			watchdog_level;
 	unsigned char			timezone;
 	unsigned char			condition_limit;
+	unsigned char			memory_mode;
+	unsigned char			cache_clean;
+	unsigned char			msg_overrun;
+	unsigned char			miss_avmsg_overrun;
+	unsigned char			recorder_avmsg_overrun;
+	unsigned char			av_buff_overrun;
+	unsigned char			overrun;
 //sleep
 	manager_sleep_t			sleep;
 } manager_config_t;
@@ -86,7 +99,6 @@ typedef struct manager_config_t {
 /*
  * function
  */
-void signal_handler(int sig);
 /*
  * global variables
  */
