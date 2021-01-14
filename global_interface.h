@@ -16,7 +16,7 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-8.0"
+#define				APPLICATION_VERSION_STRING	"beta-8.1"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
