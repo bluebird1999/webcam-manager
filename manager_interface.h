@@ -23,7 +23,7 @@
 /*
  * define
  */
-#define	SERVER_MANAGER_VERSION_STRING		"alpha-8.1"
+#define	SERVER_MANAGER_VERSION_STRING		"alpha-8.2"
 
 #define	MAX_SERVER			32
 
