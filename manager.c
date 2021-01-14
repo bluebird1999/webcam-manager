@@ -31,7 +31,6 @@
 #include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
-#include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "../server/scanner/scanner_interface.h"
 #include "../server/video3/video3_interface.h"
@@ -68,6 +67,7 @@ static void main_thread_termination(void);
 static int manager_server_start(int server);
 static void manager_sleep(void);
 static void manager_send_wakeup(int server);
+static set_led(int led1_status, int led2_status);
 /*
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  * %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -108,7 +108,7 @@ static int manager_routine_proc(void)
 	//***
 	malloc_trim();
 //	malloc_stats();
-	system("cat /proc/buddyinfo");
+//	system("cat /proc/buddyinfo");
 	//***
 }
 
@@ -143,6 +143,23 @@ static int manager_mempool_deinit(void)
     elr_mpl_destroy(&_pool_);
     elr_mpl_finalize();
     return ret;
+}
+
+static set_led(int led1_status, int led2_status)
+{
+	message_t msg;
+	device_iot_config_t tmp;
+
+	msg_init(&msg);
+	memset(&tmp, 0 , sizeof(device_iot_config_t));
+	tmp.led2_onoff = led2_status;
+	tmp.led1_onoff = led1_status;
+	msg.message = MSG_DEVICE_CTRL_DIRECT;
+	msg.sender = msg.receiver = SERVER_MANAGER;
+	msg.arg_in.cat = DEVICE_CTRL_LED;
+	msg.arg = (void *)&tmp;
+	msg.arg_size = sizeof(tmp);
+	manager_common_send_message(SERVER_DEVICE,    &msg);
 }
 
 static int manager_get_property(message_t *msg)
@@ -199,6 +216,7 @@ static int manager_set_property(message_t *msg)
 					_config_.running_mode = RUNNING_MODE_NORMAL;
 					_config_.sleep.enable = 0;
 					config_manager_set(0, &_config_);
+					set_led(LED_ON, LED_OFF);
 					manager_wakeup();
 					send_msg.arg_in.wolf = 1;
 				}
@@ -211,6 +229,7 @@ static int manager_set_property(message_t *msg)
 					_config_.running_mode = RUNNING_MODE_SLEEP;
 					_config_.sleep.enable = 1;
 					config_manager_set(0, &_config_);
+					set_led(LED_OFF, LED_OFF);
 					manager_sleep();
 					send_msg.arg_in.wolf = 1;
 				}
@@ -247,15 +266,7 @@ static void manager_send_wakeup(int server)
 
 static void sleep_test(void)
 {
-	static time = 0;
-	if( time < 10 ) {
-		manager_sleep();
-		time++;
-	}
-	else {
-		main_thread_termination();
-	}
-
+	manager_sleep();
 }
 
 static void manager_sleep(void)
@@ -307,10 +318,6 @@ static int manager_server_start(int server)
 		case SERVER_PLAYER:
 			if( !server_player_start() )
 				misc_set_bit(&info.thread_start, SERVER_PLAYER, 1);
-			break;
-		case SERVER_SPEAKER:
-			if( !server_speaker_start() )
-				misc_set_bit(&info.thread_start, SERVER_SPEAKER, 1);
 			break;
 		case SERVER_VIDEO2:
 			if( !server_video2_start() )
@@ -428,7 +435,6 @@ static int server_message_proc(void)
 		case MSG_AUDIO_SIGINT:
 		case MSG_RECORDER_SIGINT:
 		case MSG_PLAYER_SIGINT:
-		case MSG_SPEAKER_SIGINT:
 		case MSG_VIDEO2_SIGINT:
 		case MSG_SCANNER_SIGINT:
 		case MSG_VIDEO3_SIGINT:
@@ -486,13 +492,7 @@ static int server_message_proc(void)
 						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 						send_msg.message = MSG_MANAGER_EXIT;
 						manager_common_send_message(SERVER_SCANNER, &send_msg);
-//						manager_common_send_message(SERVER_SPEAKER, &send_msg);
-//						manager_common_send_message(SERVER_MIIO, &send_msg);
 						log_qcy(DEBUG_INFO, "---scanner success!---");
-//						info.task.func = task_exit;
-//						info.status = EXIT_INIT;
-//						_config_.running_mode = RUNNING_MODE_EXIT;
-//						info.status2 = 1;
 						info.task.func = task_default;
 						info.status = STATUS_NONE;
 						_config_.running_mode = RUNNING_MODE_NORMAL;
@@ -548,7 +548,7 @@ static void task_sleep(void)
 			info.status = STATUS_IDLE;
 			break;
 		case STATUS_IDLE:
-			if( info.thread_start == ((~_config_.server_sleep) & 0x3FFF)) {
+			if( info.thread_start == ((~_config_.server_sleep) & 0x7FFF)) {
 				info.status = STATUS_START;
 				log_qcy(DEBUG_INFO, "sleeping process quiter is %d and the after status = %x", info.task.msg.sender, info.thread_start);
 			}
@@ -631,7 +631,6 @@ static void task_deep_sleep(void)
 static void task_default(void)
 {
 	int i;
-	message_t	msg;
 	switch( info.status )
 	{
 		case STATUS_NONE:
@@ -701,10 +700,10 @@ static void task_testing(void)
 			msg_init(&msg);
 			msg.message = MSG_MANAGER_TIMER_ADD;
 			msg.sender = SERVER_MANAGER;
-			msg.arg_in.cat = 3600*1000*10;
+			msg.arg_in.cat = 1000*20;
 			msg.arg_in.dog = 0;
 			msg.arg_in.duck = 1;
-			msg.arg_in.handler = &main_thread_termination;
+			msg.arg_in.handler = &sleep_test;
 			manager_common_send_message(SERVER_MANAGER, &msg);
 			info.status = STATUS_RUN;
 			break;
@@ -738,7 +737,7 @@ static void task_scanner(void)
 			break;
 		case STATUS_SETUP:
 //			start = 10264;//2072; //10100000011000, miio, realtek, speaker, scanner;
-			start = 10266;//2072; //10100000011000, miio, realtek, speaker, scanner, device;
+			start = 8218;//2072; //10100000011000, miio, realtek, scanner, device;
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( start, i) ) {
 					manager_server_start(i);
@@ -882,7 +881,7 @@ void manager_deep_sleep(void)
 void manager_wakeup(void)
 {
 	info.status = STATUS_NONE;
-	info.task.func = task_default;
+	info.task.func = task_testing;
 	manager_send_wakeup(SERVER_MIIO);
 }
 

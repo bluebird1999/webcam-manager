@@ -28,7 +28,6 @@
 #include "../server/kernel/kernel_interface.h"
 #include "../server/recorder/recorder_interface.h"
 #include "../server/player/player_interface.h"
-#include "../server/speaker/speaker_interface.h"
 #include "../tools/tools_interface.h"
 #include "../server/scanner/scanner_interface.h"
 #include "../server/video/video_interface.h"
@@ -154,7 +153,6 @@ int main(int argc, char *argv[])
 	printf("%10s: %s\r\n", "audio",SERVER_AUDIO_VERSION_STRING);
 	printf("%10s: %s\r\n", "recorder",SERVER_RECORDER_VERSION_STRING);
 	printf("%10s: %s\r\n", "player",SERVER_PLAYER_VERSION_STRING);
-	printf("%10s: %s\r\n", "speaker",SERVER_SPEAKER_VERSION_STRING);
 	printf("%10s: %s\r\n", "video2",SERVER_VIDEO2_VERSION_STRING);
 	printf("%10s: %s\r\n", "scanner",SERVER_SCANNER_VERSION_STRING);
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");

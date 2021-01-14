@@ -18,6 +18,8 @@
  * define
  */
 #define	THREAD_TIMER				0
+#define        LED_ON               1
+#define        LED_OFF              0
 
 /*
  * structure

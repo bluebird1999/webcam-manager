@@ -16,7 +16,7 @@
 /*
  * define
  */
-#define				APPLICATION_VERSION_STRING	"beta-7.0"
+#define				APPLICATION_VERSION_STRING	"beta-8.0"
 
 #define 			MAX_SYSTEM_STRING_SIZE 		32
 #define				MAX_SOCKET_TRY				3
@@ -83,7 +83,7 @@ typedef struct manager_config_t {
 	unsigned char			heartbeat_enable;
 	unsigned char			heartbeat_interval;
 	unsigned char			watchdog_level;
-	unsigned char			timezone;
+	int						timezone;
 	unsigned char			condition_limit;
 	unsigned char			memory_mode;
 	unsigned char			cache_clean;

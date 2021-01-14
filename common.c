@@ -74,9 +74,6 @@ int manager_common_send_message(int receiver, message_t *msg)
 		case SERVER_PLAYER:
 			st = server_player_message(msg);
 			break;
-		case SERVER_SPEAKER:
-			st = server_speaker_message(msg);
-			break;
 		case SERVER_VIDEO2:
 			st = server_video2_message(msg);
 			break;
