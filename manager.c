@@ -452,15 +452,18 @@ static int server_message_proc(void)
 			if( _config_.running_mode == RUNNING_MODE_NORMAL ){
 				if( _config_.fail_restart ) {
 					/********message body********/
-					msg_init(&send_msg);
-					send_msg.message = MSG_MANAGER_TIMER_ADD;
-					send_msg.sender = SERVER_MANAGER;
-					send_msg.arg_in.cat = _config_.fail_restart_interval * 1000;
-					send_msg.arg_in.dog = 0;
-					send_msg.arg_in.duck = 1;
-					send_msg.arg_in.handler = manager_delayed_start;
-					send_msg.arg_pass.cat = msg.sender;
-					manager_common_send_message(SERVER_MANAGER, &send_msg);
+					if(msg.sender != SERVER_SCANNER)
+					{
+						msg_init(&send_msg);
+						send_msg.message = MSG_MANAGER_TIMER_ADD;
+						send_msg.sender = SERVER_MANAGER;
+						send_msg.arg_in.cat = _config_.fail_restart_interval * 1000;
+						send_msg.arg_in.dog = 0;
+						send_msg.arg_in.duck = 1;
+						send_msg.arg_in.handler = manager_delayed_start;
+						send_msg.arg_pass.cat = msg.sender;
+						manager_common_send_message(SERVER_MANAGER, &send_msg);
+					}
 					/*****************************/
 				}
 				log_qcy(DEBUG_INFO, "restart process quit status = %x", info.thread_start);
@@ -492,11 +495,9 @@ static int server_message_proc(void)
 						send_msg.sender = send_msg.receiver = SERVER_MANAGER;
 						send_msg.message = MSG_MANAGER_EXIT;
 						manager_common_send_message(SERVER_SCANNER, &send_msg);
+//						manager_common_send_message(SERVER_AUDIO, &send_msg);
 						log_qcy(DEBUG_INFO, "---scanner success!---");
-						info.task.func = task_default;
-						info.status = STATUS_NONE;
-						_config_.running_mode = RUNNING_MODE_NORMAL;
-						info.status2 = 0;
+						info.status = STATUS_STOP;
 					}
 					else {
 						log_qcy(DEBUG_INFO, "---scanner error status = %d---", msg.arg_in.dog);
@@ -737,7 +738,7 @@ static void task_scanner(void)
 			break;
 		case STATUS_SETUP:
 //			start = 10264;//2072; //10100000011000, miio, realtek, speaker, scanner;
-			start = 8218;//2072; //10100000011000, miio, realtek, scanner, device;
+			start = 8478;//2072; //10100000011000, miio, realtek, scanner, device, audio;
 			for(i=0;i<MAX_SERVER;i++) {
 				if( misc_get_bit( start, i) ) {
 					manager_server_start(i);
@@ -754,6 +755,24 @@ static void task_scanner(void)
 		case STATUS_RUN:
 			break;
 		case STATUS_STOP:
+			if(!misc_get_bit( info.thread_start, SERVER_SCANNER) == 0 /*&&
+					!misc_get_bit( info.thread_start, SERVER_AUDIO) == 0*/)
+			{
+//				if(!misc_get_bit( info.thread_start, SERVER_REALTEK) == 0)
+//				{
+					info.task.func = task_default;
+					info.status = STATUS_NONE;
+					_config_.running_mode = RUNNING_MODE_NORMAL;
+					info.status2 = 0;
+//				}else
+//				{
+//					message_t send_msg;
+//					msg_init(&send_msg);
+//					send_msg.sender = send_msg.receiver = SERVER_MANAGER;
+//					send_msg.message = MSG_MANAGER_EXIT;
+//					manager_common_send_message(SERVER_REALTEK, &send_msg);
+//				}
+			}
 			break;
 		case STATUS_RESTART:
 			break;
@@ -881,7 +900,7 @@ void manager_deep_sleep(void)
 void manager_wakeup(void)
 {
 	info.status = STATUS_NONE;
-	info.task.func = task_testing;
+	info.task.func = task_default;
 	manager_send_wakeup(SERVER_MIIO);
 }
 

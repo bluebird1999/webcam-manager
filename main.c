@@ -67,6 +67,11 @@ void log_redirect_close(void)
 	if(logFd != NULL)
 		   fclose(logFd);
 
+	if(log_path)
+	{
+		free(log_path);
+		log_path = NULL;
+	}
 	system("sync");
 }
 
@@ -103,7 +108,7 @@ static void log_check(void)
 
 	file_size = ftell(logFd);
 
-	if(file_size <= (512 * 1024))
+	if(file_size <= (1024 * 1024 * 20))
 		   return;
 
 	if(file_c == 1) {
@@ -134,7 +139,7 @@ static void log_check(void)
  */
 int main(int argc, char *argv[])
 {
-//	log_redirect();
+	log_redirect();
 
 	printf("++++++++++++++++++++++++++++++++++++++++++\r\n");
 	printf("   webcam started\r\n");
